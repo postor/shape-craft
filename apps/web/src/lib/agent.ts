@@ -1,5 +1,5 @@
 import type { AssetCategory, AssetComponent, AssetInput, AssetPart, ShapeType, Vec3 } from '@shape-craft/schema';
-import { createEmptyAsset } from '@shape-craft/schema';
+import { createEmptyAsset, uid } from '@shape-craft/schema';
 import { PREFAB_TEMPLATES, templateByKey } from '@shape-craft/schema';
 import { loadSettings } from './settings.ts';
 
@@ -87,7 +87,7 @@ function ruleBased(prompt: string): AgentResult {
 const SCHEMA_HINT = `You are a 3D modeling assistant for ShapeCraft. A component is a JSON tree of primitive parts.
 
 SCHEMA (strict JSON shape):
-Component = { "name": string, "category": "tree"|"flower"|"grass"|"house"|"rock"|"road"|"decor"|"other", "description": string, "message": string (a short natural-language reply to the user, in the same language as the request), "root": Part }
+Component = { "name": string, "category": "tree"|"flower"|"grass"|"house"|"rock"|"road"|"decor"|"other", "description": string, "root": Part }
 Part = {
   "name": string,
   "shape": "box"|"sphere"|"cylinder"|"cone"|"plane"|"triangle",
@@ -104,15 +104,29 @@ Geometry notes:
 - cylinder: size.x = radius, size.y = height
 - cone: size.x = radius, size.y = height
 - plane: size.x = width, size.y = height (flat quad)
-- triangle: a flat, double-sided triangle; size.x = width, size.y = height
+  - triangle: a flat, double-sided triangle; size.x = width, size.y = height
 
-GENERAL RULES:
+  SCENE GRAPH / TRANSFORMS:
+  - The part tree is a REAL scene graph. Each part's "position", "rotation", and
+    "scale" are RELATIVE TO ITS PARENT, and a parent's transform is applied
+    (accumulated) to its entire subtree. So to put a leaf on a branch, give the
+    leaf a position RELATIVE TO THE BRANCH NODE — never a world coordinate.
+    If you need to group several children under a shared local origin, insert an
+    invisible container part (a tiny box, e.g. size {x:0.01,y:0.01,z:0.01},
+    color "#000000") as their parent.
+  - IDs are generated and managed by the system automatically (always unique).
+    Do NOT use ids to express parent/child relationships — those come purely
+    from the tree nesting. You may omit "id" entirely; any "id" you include
+    will be ignored and replaced.
+
+  GENERAL RULES:
 - Always respond with ONLY the JSON object, no markdown or prose.
 - When CREATING, return the COMPLETE Component (the entire root tree).
 - When the user asks to MODIFY an existing component, edit the provided JSON IN PLACE and return the COMPLETE updated Component.
 - When MODIFYING, transform the existing relevant parts in the returned tree (resize / recolor / replace shape / move). The returned Component must reflect the change WITHOUT leaving both the old and the new version behind — no redundant duplicates.
 - You have full freedom to add, remove, recolor, rescale, rotate, or restructure parts to satisfy the request. Follow the user's intent.
 - Keep it coherent and reasonably sized (prefer <= 40 parts). Use pleasing basic materials.
+- ALWAYS write your conversational reply in your streamed TEXT (it is shown to the user live). Never put user-facing prose inside the tool arguments.
 
 TOOL USAGE:
 - ALWAYS write your natural-language reply to the user as your NORMAL text message (it is streamed to the user live, so they see it immediately). Do NOT put user-facing prose inside the tool arguments.
@@ -120,8 +134,10 @@ TOOL USAGE:
 - Set \`update: true\` whenever you actually create or modify a component (it will be saved). Set \`update: false\` when you need MORE information from the user before making any change — then ask your question in the normal text reply and DO NOT include a real component (nothing will be saved).
 - Always reply in the SAME language as the user's request.`;
 
-// A full example that teaches the expected format AND conventions (e.g. flat
-// triangular leaves, sensible materials) by demonstration rather than by rules.
+// A full example that teaches the expected format AND conventions by
+// demonstration: flat triangular leaves grouped under an invisible "Leaves"
+// container, with each leaf's position RELATIVE to that container (scene-graph
+// rule), pleasing materials, and no "id" fields (the system assigns them).
 const EXAMPLE_ASSET = {
   name: 'Oak Tree',
   category: 'tree',
@@ -163,7 +179,7 @@ const EXAMPLE_ASSET = {
   },
 };
 
-const SHAPES: ShapeType[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle'];
+const SHAPES: ShapeType[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle', 'node'];
 
 // JSON-schema description of a single Part, reused inside the tool definition.
 const PART_PROPS = {
@@ -221,7 +237,11 @@ function sanitizePart(p: any, index: { i: number }): AssetPart {
   const color = typeof p?.material?.color === 'string' ? p.material.color : '#cccccc';
   const children = Array.isArray(p?.children) ? p.children.map((c: any) => sanitizePart(c, index)) : [];
   return {
-    id: `part_${Date.now().toString(36)}_${index.i}`,
+    // Use the schema's monotonic uid() so generated ids never collide — the old
+    // `Date.now() + local index` scheme could duplicate ids within the same
+    // millisecond across multiple sanitize passes, which made selecting one
+    // part highlight several (shared id).
+    id: uid(),
     name: typeof p?.name === 'string' ? p.name : `Part${index.i}`,
     shape,
     size: vec(p?.size, 1, 1, 1),
@@ -252,6 +272,7 @@ async function callLLM(
   prompt: string,
   ctx?: AgentContext,
   onProgress?: (text: string) => void,
+  opts?: { images?: string[]; verify?: boolean },
 ): Promise<AgentResult> {
   const cfg = loadSettings();
   const url = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -259,6 +280,28 @@ async function callLLM(
   const userContent = current
     ? `Current component (modify it as requested, return the FULL updated JSON):\n${JSON.stringify(current)}\n\nRequest: ${prompt}`
     : `Create a new 3D component for: ${prompt}`;
+
+  // In verify mode the user message is a multimodal prompt: a text instruction
+  // plus the rendered preview image(s), so the model can visually judge the
+  // result. Otherwise it is a plain text message.
+  let userMessage: { role: 'user'; content: unknown };
+  if (opts?.verify) {
+    const verifyText =
+      'Below is a rendered preview image of the current component. Visually verify whether it ' +
+      'achieves the user’s intent (correct shapes, structure, proportions, colors, no obvious ' +
+      'errors). If there is still something to improve or finish, return the COMPLETE updated ' +
+      'component via the create_component tool (update:true). If it already satisfies the ' +
+      'requirement, simply reply with the word “完成” in text — do NOT call the tool and do NOT ' +
+      'return a component (update:false).';
+    const parts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: 'text', text: verifyText },
+    ];
+    if (current) parts.push({ type: 'text', text: `Current component JSON:\n${JSON.stringify(current)}` });
+    for (const img of opts.images ?? []) parts.push({ type: 'image_url', image_url: { url: img } });
+    userMessage = { role: 'user', content: parts };
+  } else {
+    userMessage = { role: 'user', content: userContent };
+  }
 
   // NOTE: some OpenAI-compatible providers (e.g. tencent/hy3 via OpenRouter)
   // do NOT support `response_format: { type: 'json_object' }`. We use the
@@ -269,6 +312,8 @@ async function callLLM(
     temperature: 0.6,
     stream: true,
     tools: [CREATE_TOOL],
+    // `auto` lets the model EITHER call `create_component` (make a change) OR
+    // reply in plain text (e.g. ask the user for a more detailed description).
     tool_choice: 'auto',
     messages: [
       { role: 'system', content: SCHEMA_HINT },
@@ -278,7 +323,7 @@ async function callLLM(
           'Understood. Here is an example component in the expected format:\n' +
           JSON.stringify(EXAMPLE_ASSET),
       },
-      { role: 'user', content: userContent },
+      userMessage,
     ],
   };
 
@@ -306,6 +351,9 @@ async function callLLM(
   let buffer = '';
   let content = '';
   let toolArgs = '';
+  // The verbatim response body exactly as received over the wire (every SSE
+  // `data:` event), for full debugging visibility at the interface level.
+  let wireResponse = '';
   let lastShown = '';
   const show = (text: string) => {
     if (text && text !== lastShown) {
@@ -325,6 +373,8 @@ async function callLLM(
       if (!line.startsWith('data:')) continue;
       const data = line.slice(5).trim();
       if (data === '[DONE]') continue;
+      // Capture the raw event payload verbatim (interface-level response).
+      wireResponse += data + '\n';
       let json: any;
       try {
         json = JSON.parse(data);
@@ -332,29 +382,56 @@ async function callLLM(
         continue;
       }
       const delta = json?.choices?.[0]?.delta ?? {};
-      // The natural-language reply is streamed in `content`, independent of the
-      // tool call — so the user sees it as soon as tokens arrive.
+      // The natural-language reply is normally streamed in `content`. When the
+      // provider leaves `content` null and wraps everything in the tool call,
+      // fall back to streaming the tool arguments so the user still sees live
+      // text (and the description) as it arrives.
       if (typeof delta.content === 'string') {
         content += delta.content;
         show(content);
+      } else if (toolArgs) {
+        show(toolArgs);
       }
       const tc = delta.tool_calls?.[0];
       if (tc?.function?.arguments) {
         toolArgs += tc.function.arguments;
+        if (!content) show(toolArgs);
       }
     }
   }
 
-  const raw: string = toolArgs || content;
+  // The raw response exactly as returned by the `/chat/completions` endpoint
+  // (every SSE `data:` event, verbatim), exposed in the `raw` field for full
+  // interface-level visibility.
+  const raw: string = wireResponse.trim() || content || toolArgs;
   if (!raw) throw new Error('模型未返回任何内容');
 
   // Debug: print the raw model output (the "toolcall" result).
   console.log('[agent] AI raw response ->', raw);
 
-  const parsed = JSON.parse(raw);
+  // No tool call: the model replied in plain text. Treat it as a normal
+  // conversation turn (e.g. asking the user for a more detailed description) —
+  // do NOT parse JSON and do NOT modify the component.
+  if (!toolArgs) {
+    const reply = content.trim();
+    if (!reply) throw new Error('模型未返回任何内容');
+    return { message: reply, usedLLM: true, raw };
+  }
 
-  // The natural-language reply (already streamed) is the authoritative message.
-  const reply = content.trim() || (typeof parsed?.message === 'string' ? parsed.message.trim() : '');
+  // Tool call present: the model returned structured component data. Parse the
+  // pure tool arguments (NOT the display `raw`, which has a prefix).
+  let parsed: any;
+  try {
+    parsed = JSON.parse(toolArgs);
+  } catch {
+    throw new Error(`模型未返回合法的 JSON（收到：${toolArgs.slice(0, 80)}）`);
+  }
+
+  // The model's own reply is shown to the user. Some providers stream the
+  // natural-language reply in `content`; others (e.g. when everything is wrapped
+  // in the tool call) leave `content` null and put the text in `description`.
+  // Prefer `content`, then fall back to `description` — never a canned status.
+  const reply = content.trim() || (typeof parsed?.description === 'string' ? parsed.description.trim() : '');
 
   // The model explicitly asks for more info: do NOT touch the component/data.
   if (parsed?.update === false) {
@@ -377,7 +454,9 @@ async function callLLM(
   asset.root = root;
   asset.description = typeof parsed?.description === 'string' ? parsed.description : `由 AI 生成：${prompt}`;
 
-  const modelMessage = reply || `AI（${cfg.model}）已${current ? '修改' : '生成'}「${asset.name}」并自动保存。`;
+  // Prefer the AI's real text (content or description); only if the model
+  // returned no text at all, fall back to a minimal note naming the component.
+  const modelMessage = reply || `已更新「${asset.name}」`;
 
   return {
     message: modelMessage,
@@ -409,6 +488,32 @@ export async function runAgent(
   } catch (e) {
     return {
       message: `AI 调用失败：${(e as Error).message}`,
+      usedLLM: true,
+    };
+  }
+}
+
+/**
+ * Visual self-verification: renders the current component to an image and asks
+ * the model whether further changes are needed. If the model returns an updated
+ * component (via the tool call, update:true) it is surfaced in `result.asset`;
+ * if the model replies "完成" (no tool call) `result.asset` is undefined and the
+ * loop in the editor should stop.
+ */
+export async function verifyAsset(
+  asset: AssetComponent,
+  imageDataUrl: string,
+  onProgress?: (text: string) => void,
+): Promise<AgentResult> {
+  const cfg = loadSettings();
+  if (!cfg.enabled || !cfg.apiKey) {
+    return { message: '未启用 AI，跳过可视化验证。', usedLLM: false };
+  }
+  try {
+    return await callLLM('', { asset }, onProgress, { images: [imageDataUrl], verify: true });
+  } catch (e) {
+    return {
+      message: `AI 验证失败：${(e as Error).message}`,
       usedLLM: true,
     };
   }

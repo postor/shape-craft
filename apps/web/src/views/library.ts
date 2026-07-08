@@ -1,5 +1,5 @@
 import { navBar, categoryLabel } from './_shared.ts';
-import { listAssets, deleteAsset, createAsset, subscribe } from '../lib/api.ts';
+import { listAssets, deleteAsset, createAsset, duplicateAsset, renameAsset, subscribe } from '../lib/api.ts';
 import type { AssetComponent } from '@shape-craft/schema';
 import { PREFAB_TEMPLATES } from '@shape-craft/schema';
 
@@ -55,6 +55,8 @@ export function renderLibrary(root: HTMLElement) {
       </div>
       <div class="card-actions">
         <a class="btn small" href="#/editor/${a.id}">编辑</a>
+        <button class="btn small" data-dup="${a.id}">拷贝</button>
+        <button class="btn small" data-rename="${a.id}">改名</button>
         <button class="btn small danger" data-del="${a.id}">删除</button>
       </div>
     `;
@@ -69,6 +71,23 @@ export function renderLibrary(root: HTMLElement) {
         await deleteAsset(delId);
         await refresh();
       }
+      return;
+    }
+    const dupId = target.getAttribute?.('data-dup');
+    if (dupId) {
+      await duplicateAsset(dupId);
+      await refresh();
+      return;
+    }
+    const renameId = target.getAttribute?.('data-rename');
+    if (renameId) {
+      const asset = (await listAssets()).find((a) => a.id === renameId);
+      const next = prompt('重命名元件：', asset?.name ?? '');
+      if (next && next.trim() && next.trim() !== asset?.name) {
+        await renameAsset(renameId, next.trim());
+        await refresh();
+      }
+      return;
     }
   });
 

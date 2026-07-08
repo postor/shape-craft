@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Context } from 'moleculer';
 import type { AssetComponent, AssetInput } from '@shape-craft/schema';
+import { ensureUniquePartIds } from '@shape-craft/schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = resolve(__dirname, '../data/assets.json');
@@ -26,13 +27,18 @@ function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Normalize an asset so its part tree has no duplicate ids (fixes legacy data). */
+function cleanAsset(asset: AssetComponent): AssetComponent {
+  return { ...asset, root: ensureUniquePartIds(asset.root) };
+}
+
 export const assetService = {
   name: 'assets',
 
   actions: {
     list: {
-      handler(): Promise<AssetComponent[]> {
-        return loadAll();
+      async handler(): Promise<AssetComponent[]> {
+        return (await loadAll()).map(cleanAsset);
       },
     },
 
@@ -42,7 +48,7 @@ export const assetService = {
         const all = await loadAll();
         const found = all.find((a) => a.id === ctx.params.id);
         if (!found) throw new Error('Asset not found');
-        return found;
+        return cleanAsset(found);
       },
     },
 
@@ -62,7 +68,7 @@ export const assetService = {
           name: ctx.params.name,
           category: ctx.params.category as AssetComponent['category'],
           description: ctx.params.description ?? '',
-          root: ctx.params.root,
+          root: ensureUniquePartIds(ctx.params.root),
           thumbnail: ctx.params.thumbnail,
           createdAt: now,
           updatedAt: now,
@@ -94,6 +100,7 @@ export const assetService = {
           createdAt: prev.createdAt,
           updatedAt: new Date().toISOString(),
         };
+        updated.root = ensureUniquePartIds(updated.root);
         all[idx] = updated;
         await saveAll(all);
         return updated;

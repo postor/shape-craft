@@ -24,7 +24,7 @@ broker.createService(gateway, {
         },
         mappingPolicy: 'restrict',
         bodyParsers: {
-          json: true,
+          json: { limit: '10mb' },
         },
       },
     ],

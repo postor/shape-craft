@@ -1,0 +1,74 @@
+import * as THREE from 'three';
+import type { AssetPart, ShapeType, Vec3 } from '@shape-craft/schema';
+
+export function geometryFor(shape: ShapeType, size: Vec3): THREE.BufferGeometry | null {
+  // A `node` is a pure transform container with no visible geometry — it exists
+  // only to mount child parts (and inherit its transform to them). Returning
+  // null tells `buildPartObject` to skip building a mesh.
+  if (shape === 'node') return null;
+  switch (shape) {
+    case 'box':
+      return new THREE.BoxGeometry(size.x, size.y, size.z);
+    case 'sphere':
+      return new THREE.SphereGeometry(size.x, 32, 16);
+    case 'cylinder':
+      return new THREE.CylinderGeometry(size.x, size.x, size.y, 24);
+    case 'cone':
+      return new THREE.ConeGeometry(size.x, size.y, 24);
+    case 'plane':
+      return new THREE.PlaneGeometry(size.x, size.y);
+    case 'triangle': {
+      const w = size.x;
+      const h = size.y;
+      const g = new THREE.BufferGeometry();
+      // Two triangles facing opposite directions so the face is visible from
+      // both sides (front +z, back -z).
+      const verts = new Float32Array([
+        -w / 2, 0, 0, w / 2, 0, 0, 0, h, 0,
+        w / 2, 0, 0, -w / 2, 0, 0, 0, h, 0,
+      ]);
+      g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+      g.computeVertexNormals();
+      return g;
+    }
+  }
+}
+
+/**
+ * Build the Three.js object graph for a part and its descendants.
+ *
+ * The part's own transform (position / rotation / scale) is applied to the
+ * container `Group` (the `holder`), NOT to the mesh, so that child parts added
+ * to the holder INHERIT the parent transform. This is the usual scene-graph
+ * integration relationship: moving, rotating, or scaling a parent moves /
+ * rotates / scales its whole subtree.
+ */
+export function buildPartObject(part: AssetPart): THREE.Object3D {
+  const holder = new THREE.Group();
+  holder.userData.partId = part.id;
+  // Apply the node transform to the container so children inherit it.
+  holder.position.set(part.position.x, part.position.y, part.position.z);
+  holder.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
+  holder.scale.set(part.scale.x, part.scale.y, part.scale.z);
+
+  const geo = geometryFor(part.shape, part.size);
+  if (geo) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(part.material.color),
+      roughness: part.material.roughness,
+      metalness: part.material.metalness,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    // Tag both the mesh and its container with the part id so selection (by id)
+    // and picking work whether the ray hits the mesh or the group.
+    mesh.name = part.name;
+    mesh.userData.partId = part.id;
+    holder.add(mesh);
+  }
+
+  for (const child of part.children) {
+    holder.add(buildPartObject(child));
+  }
+  return holder;
+}

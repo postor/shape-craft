@@ -1,4 +1,5 @@
 import type { AssetComponent, AssetInput } from '@shape-craft/schema';
+import { clonePartTree, ensureUniquePartIds } from '@shape-craft/schema';
 
 const LS_KEY = 'shapecraft.assets.v1';
 const API_BASE = '/api/assets';
@@ -14,16 +15,35 @@ function notify() {
   listeners.forEach((fn) => fn());
 }
 
+class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...init,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (body?.message) message = body.message;
+      } catch {
+        /* ignore body parse errors */
+      }
+      throw new HttpError(message, res.status);
+    }
     return (await res.json()) as T;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    return null; // network failure → caller falls back to localStorage
   }
 }
 
@@ -43,14 +63,15 @@ function lsWrite(items: AssetComponent[]) {
 
 export async function listAssets(): Promise<AssetComponent[]> {
   const remote = await apiFetch<AssetComponent[]>('');
-  if (remote) return remote;
-  return lsRead();
+  if (remote) return remote.map((a) => ({ ...a, root: ensureUniquePartIds(a.root) }));
+  return lsRead().map((a) => ({ ...a, root: ensureUniquePartIds(a.root) }));
 }
 
 export async function getAsset(id: string): Promise<AssetComponent | null> {
   const remote = await apiFetch<AssetComponent>(`/${id}`);
-  if (remote) return remote;
-  return lsRead().find((a) => a.id === id) ?? null;
+  if (remote) return { ...remote, root: ensureUniquePartIds(remote.root) };
+  const found = lsRead().find((a) => a.id === id) ?? null;
+  return found ? { ...found, root: ensureUniquePartIds(found.root) } : null;
 }
 
 export async function createAsset(input: AssetInput): Promise<AssetComponent> {
@@ -110,4 +131,24 @@ export async function deleteAsset(id: string): Promise<void> {
   const all = lsRead().filter((a) => a.id !== id);
   lsWrite(all);
   notify();
+}
+
+/** Create a copy of an existing asset with a fresh id and (Copy) suffix. */
+export async function duplicateAsset(id: string): Promise<AssetComponent> {
+  const src = await getAsset(id);
+  if (!src) throw new Error('Asset not found');
+  return createAsset({
+    name: `${src.name} (Copy)`,
+    category: src.category,
+    description: src.description,
+    root: clonePartTree(src.root),
+    thumbnail: src.thumbnail,
+  });
+}
+
+/** Rename an existing asset in place. */
+export async function renameAsset(id: string, name: string): Promise<AssetComponent> {
+  const src = await getAsset(id);
+  if (!src) throw new Error('Asset not found');
+  return updateAsset(id, { ...src, name });
 }

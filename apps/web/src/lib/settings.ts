@@ -11,6 +11,8 @@ export interface OpenAISettings {
   model: string;
   /** OpenAI-compatible base URL, e.g. https://api.openai.com/v1 */
   baseUrl: string;
+  /** Whether the endpoint accepts image input (vision) for auto visual verification. */
+  supportsVision: boolean;
 }
 
 const LS_KEY = 'shapecraft.settings.v1';
@@ -20,6 +22,7 @@ export const DEFAULT_SETTINGS: OpenAISettings = {
   apiKey: '',
   model: 'gpt-4o-mini',
   baseUrl: 'https://api.openai.com/v1',
+  supportsVision: false,
 };
 
 export function loadSettings(): OpenAISettings {

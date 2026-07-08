@@ -6,7 +6,7 @@
  * and the backend asset service so the wire format stays stable.
  */
 
-export type ShapeType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'plane' | 'triangle';
+export type ShapeType = 'box' | 'sphere' | 'cylinder' | 'cone' | 'plane' | 'triangle' | 'node';
 
 export interface Vec3 {
   x: number;
@@ -106,6 +106,41 @@ export function createPart(opts: Partial<AssetPart> & { shape: ShapeType; name: 
     material: opts.material ?? defaultMaterial(),
     children: opts.children ?? [],
   };
+}
+
+/** Deep-clone a part tree, assigning fresh ids to every node. */
+export function clonePartTree(part: AssetPart): AssetPart {
+  return {
+    ...part,
+    id: uid(),
+    material: { ...part.material },
+    size: { ...part.size },
+    position: { ...part.position },
+    rotation: { ...part.rotation },
+    scale: { ...part.scale },
+    children: part.children.map(clonePartTree),
+  };
+}
+
+/**
+ * Walk a part tree and guarantee every node has a globally unique id.
+ *
+ * If two or more nodes share the same id (the bug behind "selecting one part
+ * highlights several"), the first occurrence keeps its id and every later
+ * collision is reassigned a fresh `uid()`. Returns the (possibly remapped) root.
+ * The original id is preserved wherever possible to minimize churn.
+ */
+export function ensureUniquePartIds(root: AssetPart): AssetPart {
+  const seen = new Set<string>();
+  const walk = (part: AssetPart): AssetPart => {
+    let id = part.id;
+    if (!id || seen.has(id)) {
+      id = uid();
+    }
+    seen.add(id);
+    return { ...part, id, children: part.children.map(walk) };
+  };
+  return walk(root);
 }
 
 export function createEmptyAsset(name = 'Untitled', category: AssetCategory = 'other'): AssetComponent {

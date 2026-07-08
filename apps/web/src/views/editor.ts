@@ -11,7 +11,8 @@ import {
 } from '@shape-craft/schema';
 import { PREFAB_TEMPLATES } from '@shape-craft/schema';
 import { Viewport } from '../lib/three-view.ts';
-import { runAgent } from '../lib/agent.ts';
+import { runAgent, verifyAsset, type AgentResult } from '../lib/agent.ts';
+import { loadSettings } from '../lib/settings.ts';
 
 export async function renderEditor(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
@@ -57,6 +58,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     <button class="btn small" data-add="cylinder">Cylinder</button>
     <button class="btn small" data-add="cone">Cone</button>
     <button class="btn small" data-add="plane">Plane</button>
+    <button class="btn small" data-add="node">Node 节点</button>
     <span class="sep"></span>
     <span class="muted">预设：</span>
     ${PREFAB_TEMPLATES.map((t) => `<button class="chip" data-preset="${t.key}">${t.label}</button>`).join('')}
@@ -194,7 +196,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     shapeField.className = 'field full';
     shapeField.innerHTML = '<span>形状</span>';
     const shapeSel = document.createElement('select');
-    (['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle'] as const).forEach((s) => {
+    (['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle', 'node'] as const).forEach((s) => {
       const o = document.createElement('option');
       o.value = s;
       o.textContent = s;
@@ -268,6 +270,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     const log = host.querySelector('.chat-log') as HTMLElement;
     const input = host.querySelector('input') as HTMLInputElement;
     const send = host.querySelector('button') as HTMLButtonElement;
+    let lastSent = '';
 
     const addMsg = (text: string, who: 'user' | 'bot') => {
       const m = document.createElement('div');
@@ -281,6 +284,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     const sendMsg = async () => {
       const text = input.value.trim();
       if (!text) return;
+      lastSent = text;
       addMsg(text, 'user');
       input.value = '';
       send.disabled = true;
@@ -295,6 +299,36 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         log.scrollTop = log.scrollHeight;
       };
 
+      // Render the current preview and ask the model whether further changes are
+      // needed. Streams its reply into a fresh bubble; returns the result so the
+      // caller can decide whether to apply another round.
+      const verifyOnce = async (a: AssetComponent, img: string): Promise<AgentResult> => {
+        const vb = addMsg('', 'bot');
+        vb.classList.add('thinking');
+        vb.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+        const onV = (t: string) => {
+          vb.classList.remove('thinking');
+          vb.textContent = t;
+          log.scrollTop = log.scrollHeight;
+        };
+        const v = await verifyAsset(a, img, onV);
+        vb.classList.remove('thinking');
+        if (!vb.textContent?.trim() || v.message) vb.textContent = v.message;
+        log.scrollTop = log.scrollHeight;
+        if (v.raw) {
+          const det = document.createElement('details');
+          det.className = 'chat-raw';
+          const summary = document.createElement('summary');
+          summary.textContent = '查看 AI 完整返回';
+          const pre = document.createElement('pre');
+          pre.textContent = v.raw;
+          det.append(summary, pre);
+          log.appendChild(det);
+          log.scrollTop = log.scrollHeight;
+        }
+        return v;
+      };
+
       const result = await runAgent(text, { asset, selectedId, isNew: !savedId }, onProgress);
       send.disabled = false;
       botMsg.classList.remove('thinking');
@@ -306,7 +340,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         const det = document.createElement('details');
         det.className = 'chat-raw';
         const summary = document.createElement('summary');
-        summary.textContent = '查看 AI 原始返回 (toolcall)';
+        summary.textContent = '查看 AI 完整返回';
         const pre = document.createElement('pre');
         pre.textContent = result.raw;
         det.append(summary, pre);
@@ -314,18 +348,48 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         log.scrollTop = log.scrollHeight;
       }
       if (result.asset) {
-        asset = result.asset;
-        (topbar.querySelector('.name-input') as HTMLInputElement).value = asset.name;
-        (topbar.querySelector('.cat-input') as HTMLSelectElement).value = asset.category;
-        if (selectedId && !findPart(asset.root, selectedId)) selectedId = null;
-        const status = await saveCurrent();
-        setSaveState(status === 'failed' ? 'AI 结果已载入，但自动保存失败（可手动保存）' : 'AI 已修改并保存 ✓');
-        refreshAll();
+        // Apply the model's edit, then loop: render a preview image, send it
+        // back to the model for visual verification, and keep applying fixes
+        // until the model says "完成" (or we hit the round cap, or vision is off).
+        const MAX_VERIFY_ROUNDS = 3;
+        let round = 0;
+        let next: AssetComponent | undefined = result.asset;
+        while (next) {
+          asset = next;
+          (topbar.querySelector('.name-input') as HTMLInputElement).value = asset.name;
+          (topbar.querySelector('.cat-input') as HTMLSelectElement).value = asset.category;
+          if (selectedId && !findPart(asset.root, selectedId)) selectedId = null;
+          const status = await saveCurrent();
+          setSaveState(status === 'failed' ? 'AI 结果已载入，但自动保存失败（可手动保存）' : 'AI 已修改并保存 ✓');
+          refreshAll();
+
+          if (round >= MAX_VERIFY_ROUNDS) break;
+          round++;
+          const cfg = loadSettings();
+          if (!cfg.enabled || !cfg.apiKey) break;
+          if (!cfg.supportsVision) {
+            addMsg('（当前接口未启用图片验证，跳过自动校验）', 'bot');
+            break;
+          }
+          const img = viewport.captureThumbnail();
+          addMsg('（已渲染预览，发送给模型校验是否仍需修改…）', 'bot');
+          const v = await verifyOnce(asset, img);
+          next = v.asset;
+          if (!next) break;
+        }
       }
     };
 
     send.addEventListener('click', sendMsg);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMsg(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendMsg();
+      } else if (e.key === 'ArrowUp' && lastSent) {
+        e.preventDefault();
+        input.value = lastSent;
+        input.setSelectionRange(lastSent.length, lastSent.length);
+      }
+    });
     addMsg('你好！我可以生成 树 / 花 / 草 / 房子，也能修改当前元件（如“添加叶子”“把屋顶改成红色”），并自动保存。', 'bot');
   }
 
@@ -342,19 +406,22 @@ export async function renderEditor(root: HTMLElement, id?: string) {
 
   function addPrimitive(shape: AssetPart['shape']) {
     const parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
+    const isNode = shape === 'node';
     const part = createPart({
       shape,
-      name: `${shape[0].toUpperCase()}${shape.slice(1)} ${parent.children.length + 1}`,
+      name: isNode ? `Node ${parent.children.length + 1}` : `${shape[0].toUpperCase()}${shape.slice(1)} ${parent.children.length + 1}`,
+      // A node has no visible content, so its size/material/offset are inert;
+      // keep them at neutral defaults consistent with other shapes.
       material: defaultMaterial(shape === 'sphere' || shape === 'cone' ? '#4caf50' : '#cccccc'),
       size: shape === 'box' ? vec3(0.6, 0.6, 0.6) : shape === 'sphere' ? vec3(0.4, 0.4, 0.4) : shape === 'plane' ? vec3(1, 1, 1) : vec3(0.3, 0.8, 0.3),
-      position: vec3(0, shape === 'cylinder' || shape === 'cone' ? 0.4 : 0.3, 0),
+      position: vec3(0, isNode ? 0 : shape === 'cylinder' || shape === 'cone' ? 0.4 : 0.3, 0),
     });
     parent.children.push(part);
     selectPart(part.id);
     refresh();
   }
 
-  toolbar.addEventListener('click', (e) => {
+  toolbar.addEventListener('click', async (e) => {
     const btn = e.target as HTMLElement;
     const add = btn.getAttribute?.('data-add');
     const preset = btn.getAttribute?.('data-preset');
@@ -372,8 +439,15 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       refreshAll();
     }
     if (shot) {
+      // Capture the current viewport and persist it as the thumbnail right away.
+      // For an unsaved asset this just previews; the next Save recaptures the live view.
       asset.thumbnail = viewport.captureThumbnail();
-      setSaveState('已截图，保存后生效');
+      if (savedId) {
+        await updateAsset(savedId, buildInput());
+        setSaveState('已截图并保存 ✓');
+      } else {
+        setSaveState('已截图（保存后将按当前视图刷新）');
+      }
     }
   });
 
@@ -394,25 +468,30 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     }
   }
 
-  async function saveCurrent(): Promise<'created' | 'updated' | 'failed'> {
-    const name = (topbar.querySelector('.name-input') as HTMLInputElement).value || 'Untitled';
-    const category = (topbar.querySelector('.cat-input') as HTMLSelectElement).value as AssetCategory;
-    asset.name = name;
-    asset.category = category;
-    if (!asset.thumbnail) asset.thumbnail = viewport.captureThumbnail();
-    const input = {
+  function buildInput() {
+    return {
       name: asset.name,
       category: asset.category,
       description: asset.description,
       root: asset.root,
       thumbnail: asset.thumbnail,
     };
+  }
+
+  async function saveCurrent(): Promise<'created' | 'updated' | 'failed'> {
+    const name = (topbar.querySelector('.name-input') as HTMLInputElement).value || 'Untitled';
+    const category = (topbar.querySelector('.cat-input') as HTMLSelectElement).value as AssetCategory;
+    asset.name = name;
+    asset.category = category;
+    // Always refresh the snapshot from the current 3D viewport on save, so the library
+    // thumbnail never goes stale after geometry/camera changes.
+    asset.thumbnail = viewport.captureThumbnail();
     try {
       if (savedId) {
-        await updateAsset(savedId, input);
+        await updateAsset(savedId, buildInput());
         return 'updated';
       }
-      const created = await createAsset(input);
+      const created = await createAsset(buildInput());
       savedId = created.id;
       asset.id = created.id;
       asset.createdAt = created.createdAt;

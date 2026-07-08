@@ -33,14 +33,16 @@ export function buildTree(): AssetPart {
     name: 'FoliageBottom',
     shape: 'cone',
     size: vec3(0.9, 1.1, 0.9),
-    position: vec3(0, 1.7, 0),
+    // Position is relative to the parent (Trunk at y=0.6), so the foliage sits
+    // at world y≈1.7 once the parent transform propagates to children.
+    position: vec3(0, 1.1, 0),
     material: mat('#3f8f3a'),
   });
   const foliageUpper = createPart({
     name: 'FoliageTop',
     shape: 'cone',
     size: vec3(0.6, 0.9, 0.6),
-    position: vec3(0, 2.5, 0),
+    position: vec3(0, 1.9, 0),
     material: mat('#4caf50'),
   });
 

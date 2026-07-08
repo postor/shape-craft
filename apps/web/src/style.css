@@ -101,7 +101,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 .tree-kids { padding-left: 16px; border-left: 1px dashed var(--border); margin-left: 10px; }
 .dot { width: 9px; height: 9px; border-radius: 2px; background: var(--muted); }
 .dot.box { background: #9aa7ff; } .dot.sphere { background: #ff9a3c; }
-.dot.cylinder { background: #4caf50; } .dot.cone { background: #b06bff; } .dot.plane { background: #7ec8ff; }
+.dot.cylinder { background: #4caf50; } .dot.cone { background: #b06bff; } .dot.plane { background: #7ec8ff; } .dot.node { background: #e0e0e0; }
 .pname { flex: 1; }
 .pshape { color: var(--muted); font-size: 11px; }
 .row-del { margin-left: 6px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; border-radius: 4px; }

@@ -28,9 +28,14 @@ export function renderSettings(root: HTMLElement) {
         <span>Model</span>
         <input type="text" class="model" value="${s.model}" placeholder="gpt-4o-mini" />
       </label>
-      <label class="field full">
+       <label class="field full">
         <span>Base URL（OpenAI 兼容）</span>
         <input type="text" class="baseUrl" value="${s.baseUrl}" placeholder="https://api.openai.com/v1" />
+      </label>
+      <label class="field full">
+        <span>支持图片输入（视觉校验）</span>
+        <input type="checkbox" class="supportsVision" ${s.supportsVision ? 'checked' : ''} />
+        <small class="muted">开启后，AI 改完元件会自动渲染预览图发给模型，校验是否仍需继续修改。需接口支持 vision。</small>
       </label>
       <div class="settings-actions">
         <span class="save-state"></span>
@@ -47,6 +52,7 @@ export function renderSettings(root: HTMLElement) {
       apiKey: (panel.querySelector('.apiKey') as HTMLInputElement).value.trim(),
       model: (panel.querySelector('.model') as HTMLInputElement).value.trim() || 'gpt-4o-mini',
       baseUrl: (panel.querySelector('.baseUrl') as HTMLInputElement).value.trim() || 'https://api.openai.com/v1',
+      supportsVision: (panel.querySelector('.supportsVision') as HTMLInputElement).checked,
     };
     saveSettings(next);
     (panel.querySelector('.save-state') as HTMLElement).textContent = '已保存 ✓';

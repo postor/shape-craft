@@ -1,30 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { AssetPart, ShapeType, Vec3 } from '@shape-craft/schema';
-
-function geometryFor(shape: ShapeType, size: Vec3): THREE.BufferGeometry {
-  switch (shape) {
-    case 'box':
-      return new THREE.BoxGeometry(size.x, size.y, size.z);
-    case 'sphere':
-      return new THREE.SphereGeometry(size.x, 32, 16);
-    case 'cylinder':
-      return new THREE.CylinderGeometry(size.x, size.x, size.y, 24);
-    case 'cone':
-      return new THREE.ConeGeometry(size.x, size.y, 24);
-    case 'plane':
-      return new THREE.PlaneGeometry(size.x, size.y);
-    case 'triangle': {
-      const w = size.x;
-      const h = size.y;
-      const g = new THREE.BufferGeometry();
-      const verts = new Float32Array([-w / 2, 0, 0, w / 2, 0, 0, 0, h, 0]);
-      g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      g.computeVertexNormals();
-      return g;
-    }
-  }
-}
+import type { AssetPart } from '@shape-craft/schema';
+import { buildPartObject } from './scene-graph.ts';
 
 export class Viewport {
   private container: HTMLElement;
@@ -77,7 +54,11 @@ export class Viewport {
   private resize() {
     const w = this.container.clientWidth || 600;
     const h = this.container.clientHeight || 400;
-    this.renderer.setSize(w, h, false);
+    this.renderer.setSize(w, h);
+    const el = this.renderer.domElement;
+    el.style.display = 'block';
+    el.style.width = '100%';
+    el.style.height = '100%';
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
@@ -100,32 +81,9 @@ export class Viewport {
     this.onSelect((obj?.userData.partId as string) ?? null);
   }
 
-  private buildPart(part: AssetPart): THREE.Object3D {
-    const geo = geometryFor(part.shape, part.size);
-    const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(part.material.color),
-      roughness: part.material.roughness,
-      metalness: part.material.metalness,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.userData.partId = part.id;
-    mesh.position.set(part.position.x, part.position.y, part.position.z);
-    mesh.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
-    mesh.scale.set(part.scale.x, part.scale.y, part.scale.z);
-
-    const holder = new THREE.Group();
-    holder.userData.partId = part.id;
-    holder.add(mesh);
-
-    for (const child of part.children) {
-      holder.add(this.buildPart(child));
-    }
-    return holder;
-  }
-
   setRoot(part: AssetPart) {
     this.rootGroup.clear();
-    this.rootGroup.add(this.buildPart(part));
+    this.rootGroup.add(buildPartObject(part));
     this.refreshSelection();
   }
 
@@ -135,11 +93,24 @@ export class Viewport {
   }
 
   private refreshSelection() {
+    const selected = this.selectedId;
     this.rootGroup.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) {
         const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial;
         if (m && 'emissive' in m) {
-          const isSel = o.parent?.userData.partId === this.selectedId || o.userData.partId === this.selectedId;
+          // A mesh is highlighted if it belongs to the selected part OR lives
+          // anywhere inside the selected part's subtree. We walk up the holder
+          // chain because a `node` has no mesh of its own — selecting it must
+          // still highlight every descendant mesh (the node's whole subtree).
+          let isSel = false;
+          let cur: THREE.Object3D | null = o;
+          while (cur) {
+            if (cur.userData.partId === selected) {
+              isSel = true;
+              break;
+            }
+            cur = cur.parent;
+          }
           m.emissive = new THREE.Color(isSel ? '#ffb300' : '#000000');
           m.emissiveIntensity = isSel ? 0.6 : 0;
         }
