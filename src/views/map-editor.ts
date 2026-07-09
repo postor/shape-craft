@@ -268,6 +268,67 @@ export async function renderMapEditor(root: HTMLElement, id?: string) {
     return box;
   }
 
+  /**
+   * Scale editor for a placed instance with a "锁定比例" (lock aspect ratio)
+   * checkbox ON by default. When locked, editing one axis scales the other two
+   * by the same factor so the instance keeps its proportions.
+   */
+  function scaleGroup(inst: MapInstance): HTMLElement {
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.innerHTML = '<div class="group-title">缩放 Scale</div>';
+
+    const lockWrap = document.createElement('label');
+    lockWrap.className = 'field full checkbox';
+    lockWrap.innerHTML = '<span>锁定比例 Lock ratio</span>';
+    const lock = document.createElement('input');
+    lock.type = 'checkbox';
+    lock.checked = true;
+    lockWrap.appendChild(lock);
+    g.appendChild(lockWrap);
+
+    let prev = { ...inst.scale };
+    const inputs: Record<string, HTMLInputElement> = {};
+    const labels = ['X', 'Y', 'Z'];
+    const box = document.createElement('div');
+    box.className = 'vec3';
+    (['x', 'y', 'z'] as const).forEach((axis, i) => {
+      const w = document.createElement('label');
+      w.className = 'field';
+      w.innerHTML = `<span>${labels[i]}</span>`;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.step = '0.1';
+      inp.value = String(inst.scale[axis]);
+      inp.addEventListener('input', () => {
+        const val = parseFloat(inp.value) || 0;
+        let next: Vec3;
+        if (lock.checked) {
+          if (prev[axis] !== 0) {
+            const factor = val / prev[axis];
+            next = { x: prev.x * factor, y: prev.y * factor, z: prev.z * factor };
+          } else {
+            next = { x: val, y: val, z: val };
+          }
+          (['x', 'y', 'z'] as const).forEach((a) => {
+            if (a !== axis) inputs[a].value = String(next[a]);
+          });
+        } else {
+          next = { ...prev, [axis]: val };
+        }
+        inst.scale = next;
+        prev = { ...next };
+        viewport.refreshInstances();
+        scheduleSave();
+      });
+      inputs[axis] = inp;
+      w.appendChild(inp);
+      box.appendChild(w);
+    });
+    g.appendChild(box);
+    return g;
+  }
+
   function instanceForm(inst: MapInstance): HTMLElement {
     const form = document.createElement('div');
     form.className = 'inspector-form';
@@ -281,7 +342,7 @@ export async function renderMapEditor(root: HTMLElement, id?: string) {
     };
     form.appendChild(mk('位置 Position', inst.position, (v) => { inst.position = v; viewport.refreshInstances(); scheduleSave(); }));
     form.appendChild(mk('旋转 Rotation (rad)', inst.rotation, (v) => { inst.rotation = v; viewport.refreshInstances(); scheduleSave(); }));
-    form.appendChild(mk('缩放 Scale', inst.scale, (v) => { inst.scale = v; viewport.refreshInstances(); scheduleSave(); }));
+    form.appendChild(scaleGroup(inst));
 
     const del = document.createElement('button');
     del.className = 'btn small danger full';
