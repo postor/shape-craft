@@ -60,7 +60,7 @@ services/api/src/
 ## 扩展指引（给后续 Agent）
 
 1. 新增元件种类：在 `packages/schema/src/templates.ts` 加生成函数，并在 `PREFAB_TEMPLATES` 注册。
-2. 新增基础形状：在 `AssetPart.shape` 联合类型 + `three-view.ts` 的 `geometryFor` 同步支持。
+2. 新增基础形状：在 `AssetPart.shape` 联合类型 + `apps/web/src/lib/scene-graph.ts` 的 `geometryFor` 同步支持（`node`/`instance` 不生成网格）。新增 `instance` 形状时还需在 `scene-graph.ts` 的 `buildPartObject` 提供 `resolve(refId)` 引用解析与整体锁定逻辑，并在编辑器/角色视图加入「插入引用」入口。
 3. 接入真实 AI：`apps/web/src/lib/settings.ts` 持久化 OpenAI 兼容配置（key / model / baseUrl / enabled），在 `#/settings` 页面配置；`lib/agent.ts` 的 `runAgent(prompt, ctx)` 在启用时把**当前元件**作为上下文传给 `${baseUrl}/chat/completions`，让模型直接修改/新增部件并回传完整 JSON（含 `sanitizePart` 校验），编辑器在收到结果后自动保存（创建或更新）。未配置 / 调用失败时回退规则生成，规则生成也支持“添加叶子 / 加一扇门”等对当前元件的增量修改。保持 `AgentResult { message, asset?, usedLLM? }` 契约即可，无需改动 UI。
 4. 世界编辑器 / 多人运行 / 发布：在 `services/api` 增加对应 service，前端新增路由视图，保持现有分层。
 

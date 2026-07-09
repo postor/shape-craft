@@ -11,6 +11,7 @@ import {
   AssetPart,
   createPart,
   defaultMaterial,
+  recenterPartTree,
   uid,
   vec3,
 } from './index.ts';
@@ -47,13 +48,15 @@ export function buildTree(): AssetPart {
   });
 
   trunk.children.push(foliageLower, foliageUpper);
-  return createPart({
-    name: 'Tree',
-    shape: 'box',
-    size: vec3(0.01, 0.01, 0.01),
-    material: mat('#000000'),
-    children: [trunk],
-  });
+  return recenterPartTree(
+    createPart({
+      name: 'Tree',
+      shape: 'box',
+      size: vec3(0.01, 0.01, 0.01),
+      material: mat('#000000'),
+      children: [trunk],
+    }),
+  );
 }
 
 /** A flower: green stem + colored petals + yellow center. */
@@ -91,13 +94,15 @@ export function buildFlower(): AssetPart {
     material: mat('#ffd23f'),
   });
 
-  return createPart({
-    name: 'Flower',
-    shape: 'box',
-    size: vec3(0.01, 0.01, 0.01),
-    material: mat('#000000'),
-    children: [stem, ...petals, center],
-  });
+  return recenterPartTree(
+    createPart({
+      name: 'Flower',
+      shape: 'box',
+      size: vec3(0.01, 0.01, 0.01),
+      material: mat('#000000'),
+      children: [stem, ...petals, center],
+    }),
+  );
 }
 
 /** A tuft of grass: several thin green blades. */
@@ -123,13 +128,15 @@ export function buildGrass(): AssetPart {
       }),
     );
   });
-  return createPart({
-    name: 'Grass',
-    shape: 'box',
-    size: vec3(0.01, 0.01, 0.01),
-    material: mat('#000000'),
-    children: blades,
-  });
+  return recenterPartTree(
+    createPart({
+      name: 'Grass',
+      shape: 'box',
+      size: vec3(0.01, 0.01, 0.01),
+      material: mat('#000000'),
+      children: blades,
+    }),
+  );
 }
 
 /** A small house: box walls + pyramid roof + door + window. */
@@ -174,13 +181,15 @@ export function buildHouse(): AssetPart {
     material: mat('#7ec8ff'),
   });
 
-  return createPart({
-    name: 'House',
-    shape: 'box',
-    size: vec3(0.01, 0.01, 0.01),
-    material: mat('#000000'),
-    children: [walls, roof, door, windowL, windowR],
-  });
+  return recenterPartTree(
+    createPart({
+      name: 'House',
+      shape: 'box',
+      size: vec3(0.01, 0.01, 0.01),
+      material: mat('#000000'),
+      children: [walls, roof, door, windowL, windowR],
+    }),
+  );
 }
 
 export interface PrefabTemplate {

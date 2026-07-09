@@ -1,5 +1,5 @@
 import { navBar, categoryOptions } from './_shared.ts';
-import { getAsset, createAsset, updateAsset, deleteAsset } from '../lib/api.ts';
+import { getAsset, createAsset, updateAsset, deleteAsset, listAssets } from '../lib/api.ts';
 import {
   AssetComponent,
   AssetPart,
@@ -11,6 +11,7 @@ import {
 } from '@shape-craft/schema';
 import { PREFAB_TEMPLATES } from '@shape-craft/schema';
 import { Viewport } from '../lib/three-view.ts';
+import { resolveRefs, type RefMap } from '../lib/instance.ts';
 import { runAgent, verifyAsset, type AgentResult } from '../lib/agent.ts';
 import { loadSettings } from '../lib/settings.ts';
 
@@ -63,6 +64,15 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     <span class="muted">预设：</span>
     ${PREFAB_TEMPLATES.map((t) => `<button class="chip" data-preset="${t.key}">${t.label}</button>`).join('')}
     <span class="sep"></span>
+    <span class="muted">引用：</span>
+    <select class="ref-select" data-ref-select><option value="">选择元件…</option></select>
+    <button class="btn small" data-insert-ref>插入引用</button>
+    <span class="sep"></span>
+    <span class="muted">变换：</span>
+    <button class="btn small mode active" data-mode="translate">拖拽</button>
+    <button class="btn small mode" data-mode="rotate">旋转</button>
+    <button class="btn small mode" data-mode="scale">缩放</button>
+    <span class="sep"></span>
     <button class="btn small" data-shot>📷 截图</button>
   `;
   center.appendChild(toolbar);
@@ -71,7 +81,11 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   viewportHost.className = 'viewport-host';
   center.appendChild(viewportHost);
 
-  const viewport = new Viewport(viewportHost, (pid) => selectPart(pid));
+  const viewport = new Viewport(
+    viewportHost,
+    (pid) => selectPart(pid),
+    (id, t) => applyTransform(id, t),
+  );
 
   // ---- Top bar (name/category/save) ----
   const topbar = document.createElement('div');
@@ -106,7 +120,8 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   function partNode(part: AssetPart, isRoot: boolean): HTMLElement {
     const row = document.createElement('div');
     row.className = 'tree-row' + (viewport.getSelectedId() === part.id ? ' selected' : '');
-    row.innerHTML = `<span class="dot ${part.shape}"></span><span class="pname">${part.name}</span><span class="pshape">${part.shape}</span><button class="row-del" title="删除该部件及其子级" data-del-id="${part.id}">×</button>`;
+    const lock = part.shape === 'instance' ? '<span class="lock" title="实例引用（整体锁定）">🔒</span>' : '';
+    row.innerHTML = `<span class="dot ${part.shape}"></span><span class="pname">${part.name}</span><span class="pshape">${part.shape}</span>${lock}<button class="row-del" title="删除该部件及其子级" data-del-id="${part.id}">×</button>`;
     row.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).classList.contains('row-del')) return;
       selectPart(part.id);
@@ -130,6 +145,18 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     selectedId = pid;
     viewport.setSelected(pid);
     renderHierarchy();
+    renderInspectorBody();
+  }
+
+  // Apply a gizmo-driven transform back onto the asset model and keep the
+  // inspector in sync. We only mutate the part data (not the 3D scene) here so
+  // the in-flight drag is not interrupted by a scene rebuild.
+  function applyTransform(id: string, t: { position: any; rotation: any; scale: any }) {
+    const part = findPart(asset.root, id);
+    if (!part) return;
+    part.position = t.position;
+    part.rotation = t.rotation;
+    part.scale = t.scale;
     renderInspectorBody();
   }
 
@@ -177,6 +204,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   }
 
   function inspectorForm(part: AssetPart): HTMLElement {
+    if (part.shape === 'instance') return instanceForm(part);
     const form = document.createElement('div');
     form.className = 'inspector-form';
 
@@ -258,6 +286,43 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     return form;
   }
 
+  /** Read-only inspector for a locked instance reference. */
+  function instanceForm(part: AssetPart): HTMLElement {
+    const form = document.createElement('div');
+    form.className = 'inspector-form';
+    form.innerHTML = `
+      <div class="group">
+        <div class="group-title">实例引用 Instance</div>
+        <p class="muted">该部件整体引用了另一个元件，内部细节不可在此编辑。</p>
+        <label class="field full"><span>名称</span></label>
+        <input class="inst-name" type="text" value="${part.name}" />
+        <label class="field full"><span>引用 ID</span></label>
+        <input class="inst-ref" type="text" value="${part.refId ?? ''}" readonly />
+      </div>
+    `;
+    const nameInput = form.querySelector('.inst-name') as HTMLInputElement;
+    nameInput.addEventListener('input', () => {
+      part.name = nameInput.value;
+      renderHierarchy();
+    });
+    const open = document.createElement('a');
+    open.className = 'btn small full';
+    open.textContent = '打开原件编辑器 →';
+    open.href = `#/editor/${part.refId}`;
+    form.appendChild(open);
+
+    const del = document.createElement('button');
+    del.className = 'btn small danger full';
+    del.textContent = '删除此引用';
+    del.addEventListener('click', () => {
+      removePart(asset.root, part.id);
+      selectedId = null;
+      refreshAll();
+    });
+    form.appendChild(del);
+    return form;
+  }
+
   // ---- Chat ----
   function renderChat(host: HTMLElement) {
     host.innerHTML = `
@@ -266,10 +331,30 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         <input type="text" placeholder="例如：帮我造一棵树 / 给这棵树添加叶子 / 把屋顶改成红色" />
         <button class="btn small primary">发送</button>
       </div>
+      <div class="chat-status">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="chat-status-text"></span>
+      </div>
     `;
     const log = host.querySelector('.chat-log') as HTMLElement;
     const input = host.querySelector('input') as HTMLInputElement;
     const send = host.querySelector('button') as HTMLButtonElement;
+    const statusEl = host.querySelector('.chat-status') as HTMLElement;
+    const statusText = host.querySelector('.chat-status-text') as HTMLElement;
+    // Persistent "AI is working" indicator: stays visible for the whole
+    // conversation turn (including tool-call waits and the verify loop) so the
+    // user never mistakes an in-flight request for a completed reply.
+    let busyCount = 0;
+    const setBusy = (active: boolean, label = 'AI 正在思考…') => {
+      busyCount = Math.max(0, busyCount + (active ? 1 : -1));
+      if (busyCount > 0) {
+        statusText.textContent = label;
+        statusEl.classList.add('active');
+      } else {
+        statusEl.classList.remove('active');
+        statusText.textContent = '';
+      }
+    };
     let lastSent = '';
 
     const addMsg = (text: string, who: 'user' | 'bot') => {
@@ -288,6 +373,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       addMsg(text, 'user');
       input.value = '';
       send.disabled = true;
+      setBusy(true, 'AI 正在思考…');
 
       // Show a "thinking" bubble immediately; streamed text replaces it live.
       const botMsg = addMsg('', 'bot');
@@ -295,6 +381,9 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       botMsg.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
       const onProgress = (t: string) => {
         botMsg.classList.remove('thinking');
+        // Keep an "editing" cursor so the user knows the reply is still in flight
+        // (e.g. while the model is streaming a tool call's arguments).
+        botMsg.classList.add('editing');
         botMsg.textContent = t;
         log.scrollTop = log.scrollHeight;
       };
@@ -308,11 +397,12 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         vb.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
         const onV = (t: string) => {
           vb.classList.remove('thinking');
+          vb.classList.add('editing');
           vb.textContent = t;
           log.scrollTop = log.scrollHeight;
         };
         const v = await verifyAsset(a, img, onV);
-        vb.classList.remove('thinking');
+        vb.classList.remove('thinking', 'editing');
         if (!vb.textContent?.trim() || v.message) vb.textContent = v.message;
         log.scrollTop = log.scrollHeight;
         if (v.raw) {
@@ -331,7 +421,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
 
       const result = await runAgent(text, { asset, selectedId, isNew: !savedId }, onProgress);
       send.disabled = false;
-      botMsg.classList.remove('thinking');
+      botMsg.classList.remove('thinking', 'editing');
       // Ensure the final, authoritative message is shown (covers non-streamed paths).
       if (!botMsg.textContent?.trim() || result.message) botMsg.textContent = result.message;
       log.scrollTop = log.scrollHeight;
@@ -373,11 +463,14 @@ export async function renderEditor(root: HTMLElement, id?: string) {
           }
           const img = viewport.captureThumbnail();
           addMsg('（已渲染预览，发送给模型校验是否仍需修改…）', 'bot');
+          setBusy(true, 'AI 正在编辑…');
           const v = await verifyOnce(asset, img);
+          setBusy(false);
           next = v.asset;
           if (!next) break;
         }
       }
+      setBusy(false);
     };
 
     send.addEventListener('click', sendMsg);
@@ -394,18 +487,37 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   }
 
   // ---- Mutations ----
-  function refresh() {
-    viewport.setRoot(asset.root);
+  async function refresh() {
+    const refs: RefMap = await resolveRefs(asset.root);
+    viewport.setRoot(asset.root, (id) => refs.get(id) ?? null);
     if (selectedId) viewport.setSelected(selectedId);
   }
   function refreshAll() {
-    refresh();
+    void refresh();
     renderHierarchy();
     renderInspectorBody();
   }
 
+  /** Fill the "insert reference" dropdown with every saved asset. */
+  async function populateRefs() {
+    const sel = toolbar.querySelector('[data-ref-select]') as HTMLSelectElement | null;
+    if (!sel) return;
+    const assets = await listAssets();
+    const current = sel.value;
+    sel.innerHTML =
+      '<option value="">选择元件…</option>' +
+      assets
+        .filter((a) => a.id !== savedId)
+        .map((a) => `<option value="${a.id}">${a.name} · ${a.category}</option>`)
+        .join('');
+    if (assets.some((a) => a.id === current)) sel.value = current;
+  }
+
   function addPrimitive(shape: AssetPart['shape']) {
-    const parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
+    let parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
+    // Never nest edits inside a locked instance — its internal tree is owned by
+    // the referenced asset. Fall back to the root in that case.
+    if (parent.shape === 'instance') parent = asset.root;
     const isNode = shape === 'node';
     const part = createPart({
       shape,
@@ -426,6 +538,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     const add = btn.getAttribute?.('data-add');
     const preset = btn.getAttribute?.('data-preset');
     const shot = btn.getAttribute?.('data-shot');
+    const mode = btn.getAttribute?.('data-mode');
     if (add) addPrimitive(add as AssetPart['shape']);
     if (preset) {
       const tpl = PREFAB_TEMPLATES.find((t) => t.key === preset)!;
@@ -436,6 +549,29 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       (topbar.querySelector('.name-input') as HTMLInputElement).value = asset.name;
       (topbar.querySelector('.cat-input') as HTMLSelectElement).value = asset.category;
       selectPart(null);
+      refreshAll();
+    }
+    if (mode) {
+      viewport.setTransformMode(mode as 'translate' | 'rotate' | 'scale');
+      toolbar.querySelectorAll('.mode').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    const insertRef = btn.getAttribute?.('data-insert-ref');
+    if (insertRef) {
+      const sel = toolbar.querySelector('[data-ref-select]') as HTMLSelectElement | null;
+      const refId = sel?.value;
+      if (!refId) return;
+      const refAsset = (await listAssets()).find((a) => a.id === refId);
+      const parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
+      const inst = createPart({
+        shape: 'instance',
+        name: refAsset?.name ?? 'Instance',
+        refId,
+        // New instances drop at a sensible height so they aren't half-buried.
+        position: vec3(0, 0.2, 0),
+      });
+      (parent.shape === 'instance' ? asset.root : parent).children.push(inst);
+      selectPart(inst.id);
       refreshAll();
     }
     if (shot) {
@@ -494,9 +630,9 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       const created = await createAsset(buildInput());
       savedId = created.id;
       asset.id = created.id;
-      asset.createdAt = created.createdAt;
-      asset.updatedAt = created.updatedAt;
+      asset.createdAt = created.updatedAt;
       ensureDelButton();
+      void populateRefs();
       return 'created';
     } catch (err) {
       setSaveState('保存失败：' + (err as Error).message);
@@ -519,6 +655,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
 
   // initial render
   buildRightPanel();
+  void populateRefs();
   refreshAll();
 }
 

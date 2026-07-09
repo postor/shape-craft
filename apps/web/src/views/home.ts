@@ -32,6 +32,10 @@ export function renderHome(root: HTMLElement) {
       <h3>聊天式建造</h3>
       <p>“帮我造一棵树” 即自动生成并附加基础材质，无需手工拼装。</p>
     </div>
+    <div class="feature">
+      <h3><a href="#/characters">角色设计 · 轴动画</a></h3>
+      <p>人形 / 四足 / 飞行三类骨架，脚本槽位驱动的站立、坐、走、飞翔动画，可调节速度角度。</p>
+    </div>
     <div class="feature disabled">
       <h3>世界编辑 / 多人运行 / AI Agent</h3>
       <p class="coming">即将推出（Coming soon）</p>

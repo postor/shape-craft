@@ -59,6 +59,8 @@ export const assetService = {
         description: 'string',
         root: 'object',
         thumbnail: { type: 'string', optional: true },
+        characterType: { type: 'string', optional: true },
+        animClips: { type: 'array', optional: true },
       },
       async handler(ctx: Context<AssetInput>): Promise<AssetComponent> {
         const all = await loadAll();
@@ -70,6 +72,8 @@ export const assetService = {
           description: ctx.params.description ?? '',
           root: ensureUniquePartIds(ctx.params.root),
           thumbnail: ctx.params.thumbnail,
+          characterType: ctx.params.characterType,
+          animClips: ctx.params.animClips,
           createdAt: now,
           updatedAt: now,
         };
@@ -87,6 +91,8 @@ export const assetService = {
         description: { type: 'string', optional: true },
         root: { type: 'object', optional: true },
         thumbnail: { type: 'string', optional: true },
+        characterType: { type: 'string', optional: true },
+        animClips: { type: 'array', optional: true },
       },
       async handler(ctx: Context<AssetInput & { id: string }>): Promise<AssetComponent> {
         const all = await loadAll();

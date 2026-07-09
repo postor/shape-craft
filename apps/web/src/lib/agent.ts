@@ -105,6 +105,10 @@ Geometry notes:
 - cone: size.x = radius, size.y = height
 - plane: size.x = width, size.y = height (flat quad)
   - triangle: a flat, double-sided triangle; size.x = width, size.y = height
+  - instance: a reference to another saved component (prefab/character). It has
+    NO children and NO own geometry; instead set "refId" to the id of the asset
+    to embed. The referenced subtree renders as one locked, indivisible unit —
+    like a primitive shape — so you can reuse a component without duplicating it.
 
   SCENE GRAPH / TRANSFORMS:
   - The part tree is a REAL scene graph. Each part's "position", "rotation", and
@@ -179,7 +183,7 @@ const EXAMPLE_ASSET = {
   },
 };
 
-const SHAPES: ShapeType[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle', 'node'];
+const SHAPES: ShapeType[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'triangle', 'node', 'instance'];
 
 // JSON-schema description of a single Part, reused inside the tool definition.
 const PART_PROPS = {
@@ -235,7 +239,14 @@ function sanitizePart(p: any, index: { i: number }): AssetPart {
   index.i += 1;
   const shape: ShapeType = SHAPES.includes(p?.shape) ? p.shape : 'box';
   const color = typeof p?.material?.color === 'string' ? p.material.color : '#cccccc';
-  const children = Array.isArray(p?.children) ? p.children.map((c: any) => sanitizePart(c, index)) : [];
+  // An `instance` references another asset by id and never carries its own
+  // subtree — ignore any children the model might try to nest inside it.
+  const children =
+    shape === 'instance'
+      ? []
+      : Array.isArray(p?.children)
+        ? p.children.map((c: any) => sanitizePart(c, index))
+        : [];
   return {
     // Use the schema's monotonic uid() so generated ids never collide — the old
     // `Date.now() + local index` scheme could duplicate ids within the same
@@ -254,6 +265,7 @@ function sanitizePart(p: any, index: { i: number }): AssetPart {
       metalness: Math.max(0, Math.min(1, num(p?.material?.metalness, 0.05))),
     },
     children,
+    ...(shape === 'instance' && typeof p?.refId === 'string' ? { refId: p.refId } : {}),
   };
 }
 

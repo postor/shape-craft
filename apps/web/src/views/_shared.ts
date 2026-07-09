@@ -1,6 +1,6 @@
 import { ASSET_CATEGORIES } from '@shape-craft/schema';
 
-export function navBar(active: 'home' | 'library' | 'settings'): HTMLElement {
+export function navBar(active: 'home' | 'library' | 'settings' | 'characters'): HTMLElement {
   const nav = document.createElement('nav');
   nav.className = 'topnav';
   nav.innerHTML = `
@@ -8,6 +8,7 @@ export function navBar(active: 'home' | 'library' | 'settings'): HTMLElement {
     <div class="nav-links">
       <a href="#/" class="${active === 'home' ? 'active' : ''}">首页</a>
       <a href="#/library" class="${active === 'library' ? 'active' : ''}">元件库</a>
+      <a href="#/characters" class="${active === 'characters' ? 'active' : ''}">角色</a>
       <a href="#/settings" class="${active === 'settings' ? 'active' : ''}">设置</a>
     </div>
   `;
@@ -23,6 +24,7 @@ export function categoryLabel(c: string): string {
     rock: '石头',
     road: '道路',
     decor: '装饰',
+    character: '角色',
     other: '其他',
   };
   return map[c] ?? c;
