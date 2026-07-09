@@ -78,7 +78,7 @@ export function createEmptyMap(name = 'Untitled Map', segments = 16, size = 20):
     description: '',
     size,
     terrain: defaultTerrain(segments),
-    water: { enabled: true, level: 0, color: '#3a7bd5' },
+    water: { enabled: true, level: 0.5, color: '#3a7bd5' },
     instances: [],
     createdAt: now,
     updatedAt: now,
@@ -166,7 +166,7 @@ export const MAP_TEMPLATES: MapTemplate[] = [
     key: 'flat',
     label: 'Flat 平原',
     defaultName: 'Flat Map',
-    build: () => ({ size: 20, terrain: defaultTerrain(16), water: { enabled: true, level: 0, color: '#3a7bd5' } }),
+    build: () => ({ size: 20, terrain: defaultTerrain(16), water: { enabled: true, level: 0.5, color: '#3a7bd5' } }),
   },
   {
     key: 'hilly',
@@ -185,7 +185,7 @@ export function createMapFromTemplate(key: string, name?: string): MapComponent 
   const tpl = mapTemplateByKey(key);
   const base = tpl
     ? tpl.build()
-    : { size: 20, terrain: defaultTerrain(16), water: { enabled: true, level: 0, color: '#3a7bd5' } };
+    : { size: 20, terrain: defaultTerrain(16), water: { enabled: true, level: 0.5, color: '#3a7bd5' } };
   const now = new Date().toISOString();
   return {
     id: uid('map'),

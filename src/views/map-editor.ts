@@ -232,6 +232,14 @@ export async function renderMapEditor(root: HTMLElement, id?: string) {
         <div class="muted">地形网格：${map.terrain.segments + 1} × ${map.terrain.segments + 1}</div>
         <div class="muted">水域：${map.water.enabled ? '开启 (level ' + map.water.level + ')' : '关闭'}</div>
         <div class="muted">元件数：${map.instances.length}</div></div>`;
+      body.appendChild(
+        numInput('地图边长 Size', map.size, (v) => {
+          map.size = v;
+          viewport.setSize(v);
+          scheduleSave();
+          renderInspector();
+        }),
+      );
       return;
     }
     body.appendChild(instanceForm(inst));

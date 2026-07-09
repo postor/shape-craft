@@ -166,7 +166,14 @@ export class MapViewport {
     this.map = map;
     this.assets = assets;
     this.rebuildTerrain();
-    this.grid.scale.setScalar(1);
+    if (this.grid) {
+      this.scene.remove(this.grid);
+      this.grid.geometry.dispose();
+    }
+    this.grid = new THREE.GridHelper(this.map.size, 10, '#3a3d47', '#2a2c33');
+    this.scene.add(this.grid);
+    this.waterMesh.geometry.dispose();
+    this.waterMesh.geometry = new THREE.PlaneGeometry(this.map.size, this.map.size);
     this.updateWater();
     this.buildInstances();
   }
@@ -195,6 +202,25 @@ export class MapViewport {
     this.map.water.level = level;
     this.map.water.enabled = enabled;
     this.updateWater();
+  }
+
+  /** Resize the map area: rebuilds terrain, grid, water plane and refits the camera. */
+  setSize(size: number) {
+    const s = Math.max(1, Number(size) || this.map.size);
+    this.map.size = s;
+    this.rebuildTerrain();
+    // Recreate the grid at the new size so its divisions stay world-aligned.
+    this.scene.remove(this.grid);
+    this.grid.geometry.dispose();
+    this.grid = new THREE.GridHelper(s, 10, '#3a3d47', '#2a2c33');
+    this.scene.add(this.grid);
+    // Water plane must match the new footprint.
+    this.waterMesh.geometry.dispose();
+    this.waterMesh.geometry = new THREE.PlaneGeometry(s, s);
+    // Refit the camera so the whole area stays in view.
+    const dist = s * 1.2;
+    this.camera.position.set(dist, dist, dist);
+    this.controls.target.set(0, 0, 0);
   }
 
   private updateWater() {
