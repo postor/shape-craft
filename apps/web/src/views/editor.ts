@@ -9,9 +9,9 @@ import {
   defaultMaterial,
   vec3,
 } from '@shape-craft/schema';
-import { PREFAB_TEMPLATES } from '@shape-craft/schema';
 import { Viewport } from '../lib/three-view.ts';
-import { resolveRefs, type RefMap } from '../lib/instance.ts';
+import { createDimensionOverlay } from '../lib/ruler.ts';
+import { resolveRefs, buildInstanceReference, findPart, type RefMap } from '../lib/instance.ts';
 import { runAgent, verifyAsset, type AgentResult } from '../lib/agent.ts';
 import { loadSettings } from '../lib/settings.ts';
 
@@ -53,29 +53,80 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   const toolbar = document.createElement('div');
   toolbar.className = 'toolbar';
   toolbar.innerHTML = `
-    <span class="muted">添加基础形状：</span>
-    <button class="btn small" data-add="box">Box</button>
-    <button class="btn small" data-add="sphere">Sphere</button>
-    <button class="btn small" data-add="cylinder">Cylinder</button>
-    <button class="btn small" data-add="cone">Cone</button>
-    <button class="btn small" data-add="plane">Plane</button>
-    <button class="btn small" data-add="node">Node 节点</button>
-    <span class="sep"></span>
-    <span class="muted">预设：</span>
-    ${PREFAB_TEMPLATES.map((t) => `<button class="chip" data-preset="${t.key}">${t.label}</button>`).join('')}
-    <span class="sep"></span>
-    <span class="muted">引用：</span>
-    <select class="ref-select" data-ref-select><option value="">选择元件…</option></select>
-    <button class="btn small" data-insert-ref>插入引用</button>
-    <span class="sep"></span>
-    <span class="muted">变换：</span>
-    <button class="btn small mode active" data-mode="translate">拖拽</button>
-    <button class="btn small mode" data-mode="rotate">旋转</button>
-    <button class="btn small mode" data-mode="scale">缩放</button>
-    <span class="sep"></span>
-    <button class="btn small" data-shot>📷 截图</button>
+    <div class="toolbar-row">
+      <span class="muted">基础形状：</span>
+      <button class="btn small" data-add="box">Box</button>
+      <button class="btn small" data-add="sphere">Sphere</button>
+      <button class="btn small" data-add="cylinder">Cylinder</button>
+      <button class="btn small" data-add="cone">Cone</button>
+      <button class="btn small" data-add="plane">Plane</button>
+      <button class="btn small" data-add="node">Node 节点</button>
+    </div>
+    <div class="toolbar-row">
+      <span class="muted">引用：</span>
+      <div class="ref-combo" data-ref-combo>
+        <input class="ref-search" data-ref-search placeholder="搜索元件…" autocomplete="off" />
+        <div class="ref-list" data-ref-list hidden></div>
+      </div>
+      <button class="btn small" data-insert-ref>插入引用</button>
+    </div>
+    <div class="toolbar-row">
+      <span class="muted">变换：</span>
+      <button class="btn small mode active" data-mode="translate">拖拽</button>
+      <button class="btn small mode" data-mode="rotate">旋转</button>
+      <button class="btn small mode" data-mode="scale">缩放</button>
+      <span class="sep"></span>
+      <button class="btn small" data-shot>📷 截图</button>
+    </div>
   `;
   center.appendChild(toolbar);
+
+  // ---- Reference combobox (searchable) ----
+  let refAssets: AssetComponent[] = [];
+  let selectedRefId: string | null = null;
+  const refSearch = toolbar.querySelector('[data-ref-search]') as HTMLInputElement;
+  const refList = toolbar.querySelector('[data-ref-list]') as HTMLElement;
+
+  function renderRefList(query: string) {
+    const q = query.trim().toLowerCase();
+    const matches = refAssets.filter(
+      (a) => !q || a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q),
+    );
+    if (!matches.length) {
+      refList.innerHTML = '<div class="ref-empty">无匹配元件</div>';
+    } else {
+      refList.innerHTML = matches
+        .slice(0, 8)
+        .map(
+          (a) =>
+            `<div class="ref-item${a.id === selectedRefId ? ' active' : ''}" data-ref-id="${a.id}">${a.name} · ${a.category}</div>`,
+        )
+        .join('');
+    }
+    refList.hidden = false;
+  }
+
+  refSearch.addEventListener('focus', async () => {
+    if (!refAssets.length) await populateRefs();
+    renderRefList(refSearch.value);
+  });
+  refSearch.addEventListener('input', () => {
+    selectedRefId = null;
+    renderRefList(refSearch.value);
+  });
+  refSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = refList.querySelector('.ref-item') as HTMLElement | null;
+      if (first) first.click();
+    } else if (e.key === 'Escape') {
+      refList.hidden = true;
+    }
+  });
+  wrap.addEventListener('click', (e) => {
+    if (!toolbar.querySelector('[data-ref-combo]')!.contains(e.target as Node)) {
+      refList.hidden = true;
+    }
+  });
 
   const viewportHost = document.createElement('div');
   viewportHost.className = 'viewport-host';
@@ -86,6 +137,8 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     (pid) => selectPart(pid),
     (id, t) => applyTransform(id, t),
   );
+
+  const updateDimensions = createDimensionOverlay(viewportHost);
 
   // ---- Top bar (name/category/save) ----
   const topbar = document.createElement('div');
@@ -483,34 +536,35 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         input.setSelectionRange(lastSent.length, lastSent.length);
       }
     });
-    addMsg('你好！我可以生成 树 / 花 / 草 / 房子，也能修改当前元件（如“添加叶子”“把屋顶改成红色”），并自动保存。', 'bot');
+    addMsg('你好！我可以修改当前元件（如“把屋顶改成红色”“加一扇门”），也能插入引用其它元件，并自动保存。', 'bot');
   }
 
   // ---- Mutations ----
   async function refresh() {
     const refs: RefMap = await resolveRefs(asset.root);
+    const instCount = (function count(n: AssetPart): number {
+      let c = n.shape === 'instance' ? 1 : 0;
+      for (const ch of n.children) c += count(ch);
+      return c;
+    })(asset.root);
+    console.log('[editor] refresh: instances in asset.root=', instCount, 'refs.size=', refs.size);
     viewport.setRoot(asset.root, (id) => refs.get(id) ?? null);
     if (selectedId) viewport.setSelected(selectedId);
   }
   function refreshAll() {
     void refresh();
+    updateDimensions(viewport.getDimensions());
     renderHierarchy();
     renderInspectorBody();
   }
 
   /** Fill the "insert reference" dropdown with every saved asset. */
   async function populateRefs() {
-    const sel = toolbar.querySelector('[data-ref-select]') as HTMLSelectElement | null;
-    if (!sel) return;
-    const assets = await listAssets();
-    const current = sel.value;
-    sel.innerHTML =
-      '<option value="">选择元件…</option>' +
-      assets
-        .filter((a) => a.id !== savedId)
-        .map((a) => `<option value="${a.id}">${a.name} · ${a.category}</option>`)
-        .join('');
-    if (assets.some((a) => a.id === current)) sel.value = current;
+    refAssets = (await listAssets()).filter((a) => a.id !== savedId);
+    if (selectedRefId && !refAssets.some((a) => a.id === selectedRefId)) {
+      selectedRefId = null;
+      refSearch.value = '';
+    }
   }
 
   function addPrimitive(shape: AssetPart['shape']) {
@@ -536,41 +590,33 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   toolbar.addEventListener('click', async (e) => {
     const btn = e.target as HTMLElement;
     const add = btn.getAttribute?.('data-add');
-    const preset = btn.getAttribute?.('data-preset');
-    const shot = btn.getAttribute?.('data-shot');
+    const shot = btn.hasAttribute?.('data-shot');
     const mode = btn.getAttribute?.('data-mode');
     if (add) addPrimitive(add as AssetPart['shape']);
-    if (preset) {
-      const tpl = PREFAB_TEMPLATES.find((t) => t.key === preset)!;
-      asset.root = tpl.build();
-      asset.name = tpl.defaultName;
-      asset.category = tpl.key as AssetCategory;
-      savedId = undefined;
-      (topbar.querySelector('.name-input') as HTMLInputElement).value = asset.name;
-      (topbar.querySelector('.cat-input') as HTMLSelectElement).value = asset.category;
-      selectPart(null);
-      refreshAll();
+    const refItem = btn.getAttribute?.('data-ref-id');
+    if (refItem) {
+      selectedRefId = refItem;
+      const a = refAssets.find((x) => x.id === refItem);
+      refSearch.value = a?.name ?? '';
+      refList.hidden = true;
+      renderRefList(refSearch.value);
     }
     if (mode) {
       viewport.setTransformMode(mode as 'translate' | 'rotate' | 'scale');
       toolbar.querySelectorAll('.mode').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
     }
-    const insertRef = btn.getAttribute?.('data-insert-ref');
+    const insertRef = btn.hasAttribute?.('data-insert-ref');
     if (insertRef) {
-      const sel = toolbar.querySelector('[data-ref-select]') as HTMLSelectElement | null;
-      const refId = sel?.value;
+      const refId = selectedRefId;
       if (!refId) return;
-      const refAsset = (await listAssets()).find((a) => a.id === refId);
-      const parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
-      const inst = createPart({
-        shape: 'instance',
-        name: refAsset?.name ?? 'Instance',
+      const refAsset = refAssets.find((a) => a.id === refId);
+      const inst = buildInstanceReference({
+        root: asset.root,
+        selectedId,
         refId,
-        // New instances drop at a sensible height so they aren't half-buried.
-        position: vec3(0, 0.2, 0),
+        refName: refAsset?.name ?? 'Instance',
       });
-      (parent.shape === 'instance' ? asset.root : parent).children.push(inst);
       selectPart(inst.id);
       refreshAll();
     }
@@ -657,18 +703,23 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   buildRightPanel();
   void populateRefs();
   refreshAll();
+
+  // ---- test hook: `?ref` auto-fetches the list and inserts the first reference ----
+  // (hash routing, so the param lives after `#/editor?ref=1`)
+  if (new URLSearchParams(location.hash.split('?')[1] || '').has('ref')) {
+    (async () => {
+      await populateRefs();
+      if (refAssets.length) {
+        const first = refAssets[0];
+        const inst = buildInstanceReference({ root: asset.root, selectedId, refId: first.id, refName: first.name });
+        selectPart(inst.id);
+        refreshAll();
+      }
+    })();
+  }
 }
 
 // ---- tree helpers ----
-function findPart(node: AssetPart, id: string): AssetPart | null {
-  if (node.id === id) return node;
-  for (const c of node.children) {
-    const f = findPart(c, id);
-    if (f) return f;
-  }
-  return null;
-}
-
 function removePart(node: AssetPart, id: string): boolean {
   const idx = node.children.findIndex((c) => c.id === id);
   if (idx !== -1) {

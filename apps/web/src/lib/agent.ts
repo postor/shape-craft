@@ -1,6 +1,5 @@
-import type { AssetCategory, AssetComponent, AssetInput, AssetPart, ShapeType, Vec3 } from '@shape-craft/schema';
+import type { AssetCategory, AssetComponent, AssetPart, ShapeType, Vec3 } from '@shape-craft/schema';
 import { createEmptyAsset, uid } from '@shape-craft/schema';
-import { PREFAB_TEMPLATES, templateByKey } from '@shape-craft/schema';
 import { loadSettings } from './settings.ts';
 
 export interface AgentContext {
@@ -21,57 +20,13 @@ export interface AgentResult {
   raw?: string;
 }
 
-const SYNONYMS: Record<string, string> = {
-  tree: 'tree',
-  树: 'tree',
-  树木: 'tree',
-  flower: 'flower',
-  花: 'flower',
-  grass: 'grass',
-  草: 'grass',
-  house: 'house',
-  房子: 'house',
-  房屋: 'house',
-  home: 'house',
-};
-
-function detectKind(text: string): string | undefined {
-  const lower = text.toLowerCase();
-  for (const [word, kind] of Object.entries(SYNONYMS)) {
-    if (lower.includes(word.toLowerCase()) || text.includes(word)) return kind;
-  }
-  for (const t of PREFAB_TEMPLATES) {
-    if (lower.includes(t.key)) return t.key;
-  }
-  return undefined;
-}
-
-function ruleBased(prompt: string): AgentResult {
+function ruleBased(_prompt: string): AgentResult {
   // Minimal, generic fallback used ONLY when no AI is configured. The AI path
   // (callLLM) is responsible for actually understanding and following user
   // instructions — we do not add per-task heuristics here.
-  const kind = detectKind(prompt);
-  if (kind) {
-    const template = templateByKey(kind);
-    if (template) {
-      const input: AssetInput = {
-        name: template.defaultName,
-        category: template.key as AssetCategory,
-        description: `由聊天自动生成：${prompt}`,
-        root: template.build(),
-      };
-      const asset = createEmptyAsset(input.name, input.category);
-      asset.root = input.root;
-      asset.description = input.description;
-      return {
-        message: `已为你生成「${template.label}」。启用 OpenAI 兼容接口后，即可用自然语言自由生成与修改（如改色、加部件、变形）。`,
-        asset,
-      };
-    }
-  }
   return {
     message:
-      '未启用 AI。当前仅支持创建 树/花/草/房子（如“造一棵树”）。在「设置」中配置 OpenAI 兼容接口后，即可用自然语言自由生成与修改元件。',
+      '未启用 AI。可在「设置」中配置 OpenAI 兼容接口后，用自然语言自由生成与修改元件（如“加一扇门”“把屋顶改成红色”），也可直接从工具栏添加基础形状 / 插入引用。',
   };
 }
 

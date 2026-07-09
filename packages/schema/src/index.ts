@@ -146,6 +146,7 @@ export function createPart(opts: Partial<AssetPart> & { shape: ShapeType; name: 
     rotation: opts.rotation ?? vec3(),
     scale: opts.scale ?? vec3(1, 1, 1),
     material: opts.material ?? defaultMaterial(),
+    refId: opts.refId,
     children: opts.children ?? [],
   };
 }
@@ -192,10 +193,26 @@ export function createEmptyAsset(name = 'Untitled', category: AssetCategory = 'o
     name,
     category,
     description: '',
-    root: createPart({ shape: 'box', name: 'Root', material: defaultMaterial('#cccccc') }),
+    root: createPart({ shape: 'node', name: 'Root', material: defaultMaterial('#cccccc') }),
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Migrate a legacy asset whose root was an empty `box` (the old default for a
+ * freshly created 元件) to a `node` container. Assets whose root is a real
+ * primitive (it has children, or was renamed) are left untouched.
+ */
+export function migrateEmptyBoxRoot(asset: AssetComponent): AssetComponent {
+  const root = asset.root;
+  if (root.shape === 'box' && root.name === 'Root' && root.children.length === 0) {
+    return {
+      ...asset,
+      root: { ...root, shape: 'node' },
+    };
+  }
+  return asset;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,3 +320,4 @@ export function groundOffsetY(root: AssetPart): number {
 
 export * from './templates.ts';
 export * from './character.ts';
+export * from './scene.ts';

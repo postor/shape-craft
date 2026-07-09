@@ -69,9 +69,11 @@ export function buildPartObject(
   if (part.shape === 'instance' && part.refId) {
     const refRoot = resolve(part.refId);
     if (refRoot) {
+      console.log('[build] instance', part.id, 'refId=', part.refId, 'resolved -> refRoot shape=', refRoot.shape, 'children=', refRoot.children.length);
       // Lock the whole referenced subtree to the instance id.
       holder.add(buildPartObject(refRoot, resolve, part.id));
     } else {
+      console.log('[build] instance', part.id, 'refId=', part.refId, 'UNRESOLVED -> placeholder');
       // Referenced asset missing (deleted / offline): show a wireframe marker.
       const placeholder = new THREE.Mesh(
         new THREE.BoxGeometry(0.4, 0.4, 0.4),

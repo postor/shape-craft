@@ -1,6 +1,6 @@
 import { ASSET_CATEGORIES } from '@shape-craft/schema';
 
-export function navBar(active: 'home' | 'library' | 'settings' | 'characters'): HTMLElement {
+export function navBar(active: 'home' | 'library' | 'settings' | 'characters' | 'scene'): HTMLElement {
   const nav = document.createElement('nav');
   nav.className = 'topnav';
   nav.innerHTML = `
@@ -9,6 +9,7 @@ export function navBar(active: 'home' | 'library' | 'settings' | 'characters'): 
       <a href="#/" class="${active === 'home' ? 'active' : ''}">首页</a>
       <a href="#/library" class="${active === 'library' ? 'active' : ''}">元件库</a>
       <a href="#/characters" class="${active === 'characters' ? 'active' : ''}">角色</a>
+      <a href="#/scenes" class="${active === 'scene' ? 'active' : ''}">场景</a>
       <a href="#/settings" class="${active === 'settings' ? 'active' : ''}">设置</a>
     </div>
   `;

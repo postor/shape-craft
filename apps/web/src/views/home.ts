@@ -12,6 +12,7 @@ export function renderHome(root: HTMLElement) {
     <p class="tagline">AI 驱动的 3D 世界与多人游戏创作平台 · 第一阶段：元件库与编辑器</p>
     <div class="cta">
       <a class="btn primary" href="#/library">进入元件库</a>
+      <a class="btn" href="#/scenes">场景编辑</a>
     </div>
     <p class="hint">用基础形状 + 材质构造 树 / 花 / 草 / 房子，或用聊天自动生成。</p>
   `;
@@ -36,9 +37,9 @@ export function renderHome(root: HTMLElement) {
       <h3><a href="#/characters">角色设计 · 轴动画</a></h3>
       <p>人形 / 四足 / 飞行三类骨架，脚本槽位驱动的站立、坐、走、飞翔动画，可调节速度角度。</p>
     </div>
-    <div class="feature disabled">
-      <h3>世界编辑 / 多人运行 / AI Agent</h3>
-      <p class="coming">即将推出（Coming soon）</p>
+    <div class="feature">
+      <h3><a href="#/scenes">场景编辑 · 地形 / 物件</a></h3>
+      <p>方形区域：地形模式下抬高 / 降低笔刷 + 水位控制；切到物件模式把元件（含角色）摆上地形。</p>
     </div>
   `;
   wrap.appendChild(features);

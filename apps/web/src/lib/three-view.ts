@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import type { AssetPart } from '@shape-craft/schema';
 import { buildPartObject, type RefResolver } from './scene-graph.ts';
+import { createAxisRuler } from './ruler.ts';
 
 export type TransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -25,6 +26,7 @@ export class Viewport {
   private onSelect: (id: string | null) => void;
   private onTransform: (id: string, t: TransformTarget) => void;
   private grid: THREE.GridHelper;
+  private ruler: THREE.Group;
   private frameCallbacks: Array<(dt: number) => void> = [];
   private clock = new THREE.Clock();
 
@@ -67,6 +69,9 @@ export class Viewport {
 
     this.grid = new THREE.GridHelper(20, 20, '#3a3d47', '#2a2c33');
     this.scene.add(this.grid);
+
+    this.ruler = createAxisRuler(10, 1);
+    this.scene.add(this.ruler);
 
     this.scene.add(this.rootGroup);
 
@@ -114,6 +119,9 @@ export class Viewport {
   setRoot(part: AssetPart, resolve: RefResolver = () => null) {
     this.rootGroup.clear();
     this.rootGroup.add(buildPartObject(part, resolve));
+    let meshCount = 0;
+    this.rootGroup.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshCount++; });
+    console.log('[viewport] setRoot done, meshes in scene=', meshCount);
     this.refreshSelection();
     // The scene graph was rebuilt, so any previous holder reference is dead;
     // re-attach the gizmo to the freshly built holder if a part is selected.
@@ -196,6 +204,19 @@ export class Viewport {
 
   getSelectedId(): string | null {
     return this.selectedId;
+  }
+
+  /**
+   * Size of the current asset along each world axis, in meters (units are
+   * meters throughout). Returns `{ x, y, z }` width/height/depth, or zeros when
+   * the scene is empty. Used by the on-screen dimension ruler.
+   */
+  getDimensions(): { x: number; y: number; z: number } {
+    const box = new THREE.Box3().setFromObject(this.rootGroup);
+    if (box.isEmpty()) return { x: 0, y: 0, z: 0 };
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    return { x: size.x, y: size.y, z: size.z };
   }
 
   /** The root group holding the current asset scene graph. */

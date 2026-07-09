@@ -16,7 +16,8 @@ import {
   AnimTrack,
 } from '@shape-craft/schema';
 import { Viewport } from '../lib/three-view.ts';
-import { resolveRefs, type RefMap } from '../lib/instance.ts';
+import { createDimensionOverlay } from '../lib/ruler.ts';
+import { resolveRefs, buildInstanceReference, findPart, type RefMap } from '../lib/instance.ts';
 import { CharacterAnimator } from '../lib/character-anim.ts';
 
 export async function renderCharacters(root: HTMLElement, type?: string, id?: string) {
@@ -59,30 +60,35 @@ export async function renderCharacters(root: HTMLElement, type?: string, id?: st
   const toolbar = document.createElement('div');
   toolbar.className = 'toolbar';
   toolbar.innerHTML = `
-    <span class="muted">类别：</span>
-    ${CHARACTER_TYPES.map(
-      (t) =>
-        `<button class="chip ${t === characterType ? 'active' : ''}" data-type="${t}">${CHARACTER_TYPE_LABEL[t]}</button>`,
-    ).join('')}
-    <span class="sep"></span>
-    <span class="muted">变换：</span>
-    <button class="btn small mode active" data-mode="rotate">旋转</button>
-    <button class="btn small mode" data-mode="translate">拖拽</button>
-    <button class="btn small mode" data-mode="scale">缩放</button>
-    <span class="sep"></span>
-    <button class="btn small" data-shot>📷 截图</button>
-    <span class="sep"></span>
-    <span class="muted">添加：</span>
-    <button class="btn small" data-add="box">Box</button>
-    <button class="btn small" data-add="sphere">Sphere</button>
-    <button class="btn small" data-add="cylinder">Cylinder</button>
-    <button class="btn small" data-add="cone">Cone</button>
-    <button class="btn small" data-add="plane">Plane</button>
-    <button class="btn small" data-add="node">Node</button>
-    <span class="sep"></span>
-    <span class="muted">引用：</span>
-    <select class="ref-select" data-ref-select><option value="">选择元件…</option></select>
-    <button class="btn small" data-insert-ref>插入引用</button>
+    <div class="toolbar-row">
+      <span class="muted">类别：</span>
+      ${CHARACTER_TYPES.map(
+        (t) =>
+          `<button class="chip ${t === characterType ? 'active' : ''}" data-type="${t}">${CHARACTER_TYPE_LABEL[t]}</button>`,
+      ).join('')}
+    </div>
+    <div class="toolbar-row">
+      <span class="muted">变换：</span>
+      <button class="btn small mode active" data-mode="rotate">旋转</button>
+      <button class="btn small mode" data-mode="translate">拖拽</button>
+      <button class="btn small mode" data-mode="scale">缩放</button>
+      <span class="sep"></span>
+      <button class="btn small" data-shot>📷 截图</button>
+    </div>
+    <div class="toolbar-row">
+      <span class="muted">添加：</span>
+      <button class="btn small" data-add="box">Box</button>
+      <button class="btn small" data-add="sphere">Sphere</button>
+      <button class="btn small" data-add="cylinder">Cylinder</button>
+      <button class="btn small" data-add="cone">Cone</button>
+      <button class="btn small" data-add="plane">Plane</button>
+      <button class="btn small" data-add="node">Node</button>
+    </div>
+    <div class="toolbar-row">
+      <span class="muted">引用：</span>
+      <select class="ref-select" data-ref-select><option value="">选择元件…</option></select>
+      <button class="btn small" data-insert-ref>插入引用</button>
+    </div>
   `;
   center.appendChild(toolbar);
 
@@ -98,6 +104,8 @@ export async function renderCharacters(root: HTMLElement, type?: string, id?: st
   const animator = new CharacterAnimator(viewport.getRootGroup());
   animator.setClips(getClips());
   viewport.onFrame((dt) => animator.update(dt));
+
+  const updateDimensions = createDimensionOverlay(viewportHost);
 
   // ---- Top bar ----
   const topbar = document.createElement('div');
@@ -578,6 +586,7 @@ export async function renderCharacters(root: HTMLElement, type?: string, id?: st
   }
   function refreshAll() {
     void refresh();
+    updateDimensions(viewport.getDimensions());
     renderHierarchy();
     renderInspectorBody();
   }
@@ -601,26 +610,24 @@ export async function renderCharacters(root: HTMLElement, type?: string, id?: st
     const btn = e.target as HTMLElement;
     const typeSel = btn.getAttribute?.('data-type');
     const mode = btn.getAttribute?.('data-mode');
-    const shot = btn.getAttribute?.('data-shot');
+    const shot = btn.hasAttribute?.('data-shot');
     const add = btn.getAttribute?.('data-add');
     if (add) {
       addPrimitive(add as AssetPart['shape']);
       return;
     }
-    const insertRef = btn.getAttribute?.('data-insert-ref');
+    const insertRef = btn.hasAttribute?.('data-insert-ref');
     if (insertRef) {
       const sel = toolbar.querySelector('[data-ref-select]') as HTMLSelectElement | null;
       const refId = sel?.value;
       if (!refId) return;
       const refAsset = (await listAssets()).find((a) => a.id === refId);
-      const parent = (selectedId && findPart(asset.root, selectedId)) || asset.root;
-      const inst = createPart({
-        shape: 'instance',
-        name: refAsset?.name ?? 'Instance',
+      const inst = buildInstanceReference({
+        root: asset.root,
+        selectedId,
         refId,
-        position: vec3(0, 0.2, 0),
+        refName: refAsset?.name ?? 'Instance',
       });
-      (parent.shape === 'instance' ? asset.root : parent).children.push(inst);
       selectPart(inst.id);
       refreshAll();
       return;
@@ -731,15 +738,6 @@ function cloneClips(clips: AnimClip[]): AnimClip[] {
     ...c,
     tracks: c.tracks.map((t) => ({ ...t, keyframes: t.keyframes.map((k) => ({ ...k })) })),
   }));
-}
-
-function findPart(node: AssetPart, id: string): AssetPart | null {
-  if (node.id === id) return node;
-  for (const c of node.children) {
-    const f = findPart(c, id);
-    if (f) return f;
-  }
-  return null;
 }
 
 function removePart(node: AssetPart, id: string): boolean {

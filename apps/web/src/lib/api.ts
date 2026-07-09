@@ -1,5 +1,5 @@
 import type { AssetComponent, AssetInput } from '@shape-craft/schema';
-import { clonePartTree, ensureUniquePartIds } from '@shape-craft/schema';
+import { clonePartTree, ensureUniquePartIds, migrateEmptyBoxRoot } from '@shape-craft/schema';
 
 const LS_KEY = 'shapecraft.assets.v1';
 const API_BASE = '/api/assets';
@@ -63,15 +63,15 @@ function lsWrite(items: AssetComponent[]) {
 
 export async function listAssets(): Promise<AssetComponent[]> {
   const remote = await apiFetch<AssetComponent[]>('');
-  if (remote) return remote.map((a) => ({ ...a, root: ensureUniquePartIds(a.root) }));
-  return lsRead().map((a) => ({ ...a, root: ensureUniquePartIds(a.root) }));
+  if (remote) return remote.map((a) => migrateEmptyBoxRoot({ ...a, root: ensureUniquePartIds(a.root) }));
+  return lsRead().map((a) => migrateEmptyBoxRoot({ ...a, root: ensureUniquePartIds(a.root) }));
 }
 
 export async function getAsset(id: string): Promise<AssetComponent | null> {
   const remote = await apiFetch<AssetComponent>(`/${id}`);
-  if (remote) return { ...remote, root: ensureUniquePartIds(remote.root) };
+  if (remote) return migrateEmptyBoxRoot({ ...remote, root: ensureUniquePartIds(remote.root) });
   const found = lsRead().find((a) => a.id === id) ?? null;
-  return found ? { ...found, root: ensureUniquePartIds(found.root) } : null;
+  return found ? migrateEmptyBoxRoot({ ...found, root: ensureUniquePartIds(found.root) }) : null;
 }
 
 export async function createAsset(input: AssetInput): Promise<AssetComponent> {
