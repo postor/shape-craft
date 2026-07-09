@@ -265,6 +265,66 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     return box;
   }
 
+  /**
+   * Scale editor with an optional "锁定比例" (lock aspect ratio) checkbox that
+   * is ON by default. When locked, editing one axis scales the other two by the
+   * same factor so the part keeps its proportions.
+   */
+  function scaleGroup(part: AssetPart): HTMLElement {
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.innerHTML = '<div class="group-title">缩放 Scale</div>';
+
+    const lockWrap = document.createElement('label');
+    lockWrap.className = 'field full checkbox';
+    lockWrap.innerHTML = '<span>锁定比例 Lock ratio</span>';
+    const lock = document.createElement('input');
+    lock.type = 'checkbox';
+    lock.checked = true;
+    lockWrap.appendChild(lock);
+    g.appendChild(lockWrap);
+
+    let prev = { ...part.scale };
+    const inputs: Record<string, HTMLInputElement> = {};
+    const labels = ['X', 'Y', 'Z'];
+    const box = document.createElement('div');
+    box.className = 'vec3';
+    (['x', 'y', 'z'] as const).forEach((axis, i) => {
+      const w = document.createElement('label');
+      w.className = 'field';
+      w.innerHTML = `<span>${labels[i]}</span>`;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.step = '0.1';
+      inp.value = String(part.scale[axis]);
+      inp.addEventListener('input', () => {
+        const val = parseFloat(inp.value) || 0;
+        let next: { x: number; y: number; z: number };
+        if (lock.checked) {
+          if (prev[axis] !== 0) {
+            const factor = val / prev[axis];
+            next = { x: prev.x * factor, y: prev.y * factor, z: prev.z * factor };
+          } else {
+            next = { x: val, y: val, z: val };
+          }
+          (['x', 'y', 'z'] as const).forEach((a) => {
+            if (a !== axis) inputs[a].value = String(next[a]);
+          });
+        } else {
+          next = { ...prev, [axis]: val };
+        }
+        part.scale = next;
+        prev = { ...next };
+        refresh();
+      });
+      inputs[axis] = inp;
+      w.appendChild(inp);
+      box.appendChild(w);
+    });
+    g.appendChild(box);
+    return g;
+  }
+
   function inspectorForm(part: AssetPart): HTMLElement {
     if (part.shape === 'instance') return instanceForm(part);
     const form = document.createElement('div');
@@ -311,7 +371,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     form.appendChild(mk('尺寸 Size', part.size, (v) => { part.size = v; refresh(); }));
     form.appendChild(mk('位置 Position', part.position, (v) => { part.position = v; refresh(); }));
     form.appendChild(mk('旋转 Rotation (rad)', part.rotation, (v) => { part.rotation = v; refresh(); }));
-    form.appendChild(mk('缩放 Scale', part.scale, (v) => { part.scale = v; refresh(); }));
+    form.appendChild(scaleGroup(part));
 
     // Material
     const matGroup = document.createElement('div');

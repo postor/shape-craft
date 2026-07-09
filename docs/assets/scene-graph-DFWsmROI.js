@@ -1,4 +1,4 @@
-import{L as Lc}from"./index-Cc4tTJsd.js";function Dy(s,t){const e=Lc.useRef(null);return Lc.useEffect(()=>{const n=e.current;if(!n)return;let i=!1,r;const a=()=>{r=n.__dispose,i&&(r==null||r())},o=s(n);return o&&typeof o.then=="function"?o.then(a):a(),()=>{i=!0,r==null||r()}},[t]),e}/**
+import{L as Lc}from"./index-DT0ki_L2.js";function Dy(s,t){const e=Lc.useRef(null);return Lc.useEffect(()=>{const n=e.current;if(!n)return;let i=!1,r;const a=()=>{r=n.__dispose,i&&(r==null||r())},o=s(n);return o&&typeof o.then=="function"?o.then(a):a(),()=>{i=!0,r==null||r()}},[t]),e}/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
