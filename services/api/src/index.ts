@@ -2,6 +2,7 @@ import { ServiceBroker, ServiceSchema } from 'moleculer';
 import ApiGateway from 'moleculer-web';
 import { assetService } from './asset.service.ts';
 import { sceneService } from './scene.service.ts';
+import { animationService } from './animation.service.ts';
 
 const broker = new ServiceBroker({
   logLevel: 'info',
@@ -26,8 +27,14 @@ broker.createService(gateway, {
           'GET /scenes/:id': 'scenes.get',
           'POST /scenes': 'scenes.create',
           'PUT /scenes/:id': 'scenes.update',
-          'DELETE /scenes/:id': 'scenes.remove',
-        },
+           'DELETE /scenes/:id': 'scenes.remove',
+           'GET /animations': 'animations.list',
+           'GET /animations/scene/:sceneId': 'animations.listByScene',
+           'GET /animations/:id': 'animations.get',
+           'POST /animations': 'animations.create',
+           'PUT /animations/:id': 'animations.update',
+           'DELETE /animations/:id': 'animations.remove',
+         },
         mappingPolicy: 'restrict',
         bodyParsers: {
           json: { limit: '10mb' },
@@ -39,6 +46,7 @@ broker.createService(gateway, {
 
 broker.createService(assetService as unknown as ServiceSchema);
 broker.createService(sceneService as unknown as ServiceSchema);
+broker.createService(animationService as unknown as ServiceSchema);
 
 broker.start().then(() => {
   broker.logger.info('ShapeCraft API listening on http://localhost:3000/api');

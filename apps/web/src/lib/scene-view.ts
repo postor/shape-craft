@@ -11,11 +11,11 @@ import {
 import type { TransformMode } from './three-view.ts';
 import { buildPartObject, type RefResolver } from './scene-graph.ts';
 import { resolveRefs, type RefMap } from './instance.ts';
-import { sampleTerrainHeight, terrainSide } from '@shape-craft/schema';
+import { sampleTerrainHeight, terrainSide, ensureTerrainWater, MAX_WATER_DEPTH } from '@shape-craft/schema';
 import { createAxisRuler, createDimensionOverlay } from './ruler.ts';
 
 export type SceneMode = 'terrain' | 'object';
-export type TerrainTool = 'raise' | 'lower' | 'flatten';
+export type TerrainTool = 'raise' | 'lower' | 'flatten' | 'water' | 'dry';
 
 export interface SceneViewportCallbacks {
   /** A terrain vertex was edited (heights mutated in place). */
@@ -53,6 +53,7 @@ export class SceneViewport {
   // 3D objects
   private terrainMesh: THREE.Mesh | null = null;
   private waterMesh: THREE.Mesh | null = null;
+  private waterLocalMesh: THREE.Mesh | null = null;
   private objectsGroup = new THREE.Group();
   private objectGroups = new Map<string, THREE.Object3D>();
   private ruler: THREE.Group | null = null;
@@ -126,8 +127,10 @@ export class SceneViewport {
   async setScene(scene: SceneComponent, assets: AssetComponent[]): Promise<void> {
     this.sceneModel = scene;
     this.assets = new Map(assets.map((a) => [a.id, a]));
+    if (scene.terrain) ensureTerrainWater(scene.terrain);
     this.rebuildTerrain();
     this.rebuildWater();
+    this.rebuildWaterLocal();
     this.rebuildObjects();
     this.applyMouseButtons();
 
@@ -335,6 +338,74 @@ export class SceneViewport {
     this.scene.add(this.waterMesh);
   }
 
+  /**
+   * Build (or rebuild) the *local* water sheet — per-vertex water depth painted
+   * onto the terrain. Unlike the global `waterLevel` plane, this follows the
+   * carved terrain so it can form rivers / ponds in channels. Dry vertices are
+   * buried just under the terrain so edge triangles stay hidden (no spikes).
+   */
+  private rebuildWaterLocal() {
+    if (this.waterLocalMesh) {
+      this.scene.remove(this.waterLocalMesh);
+      this.waterLocalMesh.geometry.dispose();
+      (this.waterLocalMesh.material as THREE.Material).dispose();
+      this.waterLocalMesh = null;
+    }
+    if (!this.sceneModel) return;
+    const t = this.sceneModel.terrain;
+    const geo = this.buildWaterGeometry(t);
+    const mat = new THREE.MeshStandardMaterial({
+      color: '#3a93d6',
+      transparent: true,
+      opacity: 0.6,
+      roughness: 0.15,
+      metalness: 0.1,
+      side: THREE.DoubleSide,
+    });
+    this.waterLocalMesh = new THREE.Mesh(geo, mat);
+    this.scene.add(this.waterLocalMesh);
+  }
+
+  /** Local water surface Y at a vertex (terrain + depth, or buried if dry). */
+  private waterLocalY(t: TerrainData, idx: number): number {
+    const depth = t.water[idx] ?? 0;
+    const terr = t.heights[idx] ?? 0;
+    return depth > 0.001 ? terr + depth : terr - 0.02;
+  }
+
+  private buildWaterGeometry(t: TerrainData): THREE.BufferGeometry {
+    const side = terrainSide(t.segments);
+    const positions = new Float32Array(side * side * 3);
+    let p = 0;
+    for (let j = 0; j < side; j++) {
+      for (let i = 0; i < side; i++) {
+        const x = -t.size / 2 + (i / t.segments) * t.size;
+        const z = -t.size / 2 + (j / t.segments) * t.size;
+        const idx = j * side + i;
+        positions[p++] = x;
+        positions[p++] = this.waterLocalY(t, idx);
+        positions[p++] = z;
+      }
+    }
+    const indices: number[] = [];
+    for (let j = 0; j < t.segments; j++) {
+      for (let i = 0; i < t.segments; i++) {
+        const a = j * side + i;
+        const b = j * side + i + 1;
+        const c = (j + 1) * side + i;
+        const d = (j + 1) * side + i + 1;
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+
   private rebuildObjects() {
     this.objectGroups.forEach((g) => this.objectsGroup.remove(g));
     this.objectGroups.clear();
@@ -451,21 +522,52 @@ export class SceneViewport {
         if (d2 > r2) continue;
         const falloff = 1 - Math.sqrt(d2) / r; // 0..1
         const idx = j * side + i;
-        const cur = heights[idx];
-        let next = cur;
-        if (this.terrainTool === 'raise') next = cur + this.brushStrength * falloff;
-        else if (this.terrainTool === 'lower') next = cur - this.brushStrength * falloff;
-        else next = cur + (point.y - cur) * Math.min(1, falloff);
-        heights[idx] = next;
-        pos.setY(idx, next);
-        changed = true;
+        if (this.terrainTool === 'water' || this.terrainTool === 'dry') {
+          const cur = t.water[idx] ?? 0;
+          const delta = this.brushStrength * falloff * 0.25;
+          const next =
+            this.terrainTool === 'water'
+              ? Math.min(MAX_WATER_DEPTH, cur + delta)
+              : Math.max(0, cur - delta);
+          if (next !== cur) {
+            t.water[idx] = next;
+            changed = true;
+          }
+        } else {
+          const cur = heights[idx];
+          let next = cur;
+          if (this.terrainTool === 'raise') next = cur + this.brushStrength * falloff;
+          else if (this.terrainTool === 'lower') next = cur - this.brushStrength * falloff;
+          else next = cur + (point.y - cur) * Math.min(1, falloff);
+          heights[idx] = next;
+          pos.setY(idx, next);
+          changed = true;
+        }
       }
     }
     if (changed) {
-      pos.needsUpdate = true;
-      this.terrainMesh.geometry.computeVertexNormals();
+      if (this.terrainTool === 'water' || this.terrainTool === 'dry') {
+        this.refreshWaterLocal();
+      } else {
+        pos.needsUpdate = true;
+        this.terrainMesh.geometry.computeVertexNormals();
+        this.refreshWaterLocal();
+      }
       this.cb.onTerrainChange();
     }
+  }
+
+  /** Recompute the local water sheet's vertex heights in place. */
+  private refreshWaterLocal() {
+    if (!this.waterLocalMesh || !this.sceneModel) return;
+    const t = this.sceneModel.terrain;
+    const side = terrainSide(t.segments);
+    const pos = this.waterLocalMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let idx = 0; idx < side * side; idx++) {
+      pos.setY(idx, this.waterLocalY(t, idx));
+    }
+    pos.needsUpdate = true;
+    this.waterLocalMesh.geometry.computeVertexNormals();
   }
 
   private async placeArmed(point: THREE.Vector3) {

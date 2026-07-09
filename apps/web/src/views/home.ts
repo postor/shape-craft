@@ -41,6 +41,10 @@ export function renderHome(root: HTMLElement) {
       <h3><a href="#/scenes">场景编辑 · 地形 / 物件</a></h3>
       <p>方形区域：地形模式下抬高 / 降低笔刷 + 水位控制；切到物件模式把元件（含角色）摆上地形。</p>
     </div>
+    <div class="feature">
+      <h3><a href="#/animations">动画编辑 · 相机 / 物件</a></h3>
+      <p>选择一个已有场景，自动生成相机与相机目标（空 node）轨道；可增建自定义轨道绑定角色 / 元件，在关键帧调整位置并设置区段动画状态（走 / 飞）。每个物件最多一个轨道。</p>
+    </div>
   `;
   wrap.appendChild(features);
 

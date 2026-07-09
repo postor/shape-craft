@@ -29,9 +29,19 @@ export interface TerrainData {
   segments: number;
   /** Flat array of vertex heights, length (segments+1)^2. */
   heights: number[];
+  /**
+   * Local water depth per vertex (meters above the terrain surface), length
+   * (segments+1)^2. `0` means dry; a positive value raises a local water sheet
+   * to `terrainHeight + water` at that vertex. This drives rivers/ponds that
+   * follow the carved terrain, independent of the global `waterLevel` plane.
+   */
+  water: number[];
   /** Base terrain color (hex). */
   color: string;
 }
+
+/** Maximum water depth (meters) a single vertex can hold. */
+export const MAX_WATER_DEPTH = 6;
 
 export interface SceneObject {
   id: string;
@@ -85,7 +95,13 @@ export function createFlatTerrain(
   color = '#6b8e3d',
 ): TerrainData {
   const count = terrainVertexCount(segments);
-  return { size, segments, heights: new Array(count).fill(0), color };
+  return {
+    size,
+    segments,
+    heights: new Array(count).fill(0),
+    water: new Array(count).fill(0),
+    color,
+  };
 }
 
 export function createSceneObject(assetId: string, name: string): SceneObject {
@@ -112,6 +128,20 @@ export function createEmptyScene(name = 'Untitled Scene'): SceneComponent {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Guarantee a terrain has a well-formed `water` array matching its vertex
+ * count. Legacy scenes saved before local water existed have no `water`
+ * field; this backfills zeros so newer code can read it unconditionally.
+ * Mutates and returns `terrain`.
+ */
+export function ensureTerrainWater(terrain: TerrainData): TerrainData {
+  const count = terrainVertexCount(terrain.segments);
+  if (!terrain.water || terrain.water.length !== count) {
+    terrain.water = new Array(count).fill(0);
+  }
+  return terrain;
 }
 
 /**

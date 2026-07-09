@@ -87,11 +87,14 @@ export function buildPartObject(
 
   const geo = geometryFor(part.shape, part.size);
   if (geo) {
+    const opacity = part.material.opacity ?? 1;
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(part.material.color),
       roughness: part.material.roughness,
       metalness: part.material.metalness,
       side: THREE.DoubleSide,
+      transparent: opacity < 1,
+      opacity,
     });
     const mesh = new THREE.Mesh(geo, mat);
     // Tag both the mesh and its container with the part id so selection (by id)

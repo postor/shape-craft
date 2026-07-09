@@ -73,6 +73,20 @@ Geometry notes:
     If you need to group several children under a shared local origin, insert an
     invisible container part (a tiny box, e.g. size {x:0.01,y:0.01,z:0.01},
     color "#000000") as their parent.
+  - Do NOT center the model at the world origin (do NOT make the object span
+    above AND below y=0). Always use a GROUND-BASED coordinate system: the center
+    of the object's BASE / FOOTPRINT is (0,0,0) and the whole object sits ON the
+    ground — i.e. the bottom of every part rests at y >= 0 and the object grows
+    UPWARD (positive y). For example, a trunk of height h sits at position.y = h/2
+    so its bottom touches 0 and its top reaches h.
+
+  REAL-WORLD SIZE (always consider real dimensions):
+  - Work in METERS and model the object at its real-world size. Before building,
+    decide the actual dimensions of the thing it represents (e.g. an oak tree is
+    ~8–12 m tall, a chair ~0.45 m seat height, a door ~2 m tall, a cat ~0.3 m at
+    the shoulder) and scale every part's size/position to match those measurements.
+    Keep the overall footprint and proportions believable, and keep the base
+    centered at (0,0,0) as described above.
   - IDs are generated and managed by the system automatically (always unique).
     Do NOT use ids to express parent/child relationships — those come purely
     from the tree nesting. You may omit "id" entirely; any "id" you include
@@ -94,13 +108,15 @@ TOOL USAGE:
 - Always reply in the SAME language as the user's request.`;
 
 // A full example that teaches the expected format AND conventions by
-// demonstration: flat triangular leaves grouped under an invisible "Leaves"
-// container, with each leaf's position RELATIVE to that container (scene-graph
-// rule), pleasing materials, and no "id" fields (the system assigns them).
+// demonstration: a ~9 m oak tree on the GROUND (base centered at 0,0,0, trunk
+// bottom at y=0, grows upward), flat triangular leaves grouped under an invisible
+// "Canopy" container, each leaf's position RELATIVE to that container (scene-graph
+// rule), realistic real-world meters-based dimensions, pleasing materials, and no
+// "id" fields (the system assigns them).
 const EXAMPLE_ASSET = {
   name: 'Oak Tree',
   category: 'tree',
-  description: 'A stylized tree with a brown trunk and flat triangular green leaves.',
+  description: 'A ~9 m tall stylized oak tree: a 5 m brown trunk standing on the ground, with a flat-triangular-leaf canopy centered on top.',
   root: {
     name: 'Tree',
     shape: 'box',
@@ -113,25 +129,25 @@ const EXAMPLE_ASSET = {
       {
         name: 'Trunk',
         shape: 'cylinder',
-        size: { x: 0.18, y: 1.2, z: 0.18 },
-        position: { x: 0, y: 0.6, z: 0 },
+        size: { x: 0.35, y: 5, z: 0.35 },
+        position: { x: 0, y: 2.5, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
         material: { color: '#7a4f2a', roughness: 0.9, metalness: 0.0 },
         children: [],
       },
       {
-        name: 'Leaves',
+        name: 'Canopy',
         shape: 'box',
         size: { x: 0.01, y: 0.01, z: 0.01 },
-        position: { x: 0, y: 1.6, z: 0 },
+        position: { x: 0, y: 7, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
         material: { color: '#000000', roughness: 0.8, metalness: 0.05 },
         children: [
-          { name: 'Leaf1', shape: 'triangle', size: { x: 0.35, y: 0.5, z: 0.01 }, position: { x: 0.4, y: 0.1, z: 0 }, rotation: { x: 0, y: 0, z: 1.2 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#3f8f3a', roughness: 0.8, metalness: 0.05 }, children: [] },
-          { name: 'Leaf2', shape: 'triangle', size: { x: 0.35, y: 0.5, z: 0.01 }, position: { x: -0.4, y: 0.1, z: 0 }, rotation: { x: 0, y: 0, z: -1.2 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#4caf50', roughness: 0.8, metalness: 0.05 }, children: [] },
-          { name: 'Leaf3', shape: 'triangle', size: { x: 0.35, y: 0.5, z: 0.01 }, position: { x: 0, y: 0.2, z: 0.4 }, rotation: { x: 1.2, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#4caf50', roughness: 0.8, metalness: 0.05 }, children: [] },
+          { name: 'Leaf1', shape: 'triangle', size: { x: 3, y: 3, z: 0.01 }, position: { x: 2, y: 0.5, z: 0 }, rotation: { x: 0, y: 0, z: 1.2 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#3f8f3a', roughness: 0.8, metalness: 0.05 }, children: [] },
+          { name: 'Leaf2', shape: 'triangle', size: { x: 3, y: 3, z: 0.01 }, position: { x: -2, y: 0.5, z: 0 }, rotation: { x: 0, y: 0, z: -1.2 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#4caf50', roughness: 0.8, metalness: 0.05 }, children: [] },
+          { name: 'Leaf3', shape: 'triangle', size: { x: 3, y: 3, z: 0.01 }, position: { x: 0, y: 1, z: 2 }, rotation: { x: 1.2, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, material: { color: '#4caf50', roughness: 0.8, metalness: 0.05 }, children: [] },
         ],
       },
     ],

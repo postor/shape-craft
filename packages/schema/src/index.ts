@@ -45,6 +45,11 @@ export interface PartMaterial {
   roughness: number;
   /** 0 = non-metal, 1 = metal */
   metalness: number;
+  /**
+   * Opacity 0..1 (additive). When < 1 the part renders as a transparent mesh.
+   * Defaults to 1 (opaque). Used for glass / water / waterfall sheets.
+   */
+  opacity?: number;
 }
 
 export interface AssetPart {
@@ -84,6 +89,7 @@ export type AssetCategory =
   | 'road'
   | 'decor'
   | 'character'
+  | 'waterfall'
   | 'other';
 
 export const ASSET_CATEGORIES: AssetCategory[] = [
@@ -95,6 +101,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'road',
   'decor',
   'character',
+  'waterfall',
   'other',
 ];
 
@@ -132,8 +139,8 @@ export function uid(prefix = 'part'): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
-export function defaultMaterial(color = '#cccccc'): PartMaterial {
-  return { color, roughness: 0.8, metalness: 0.05 };
+export function defaultMaterial(color = '#cccccc', opacity = 1): PartMaterial {
+  return { color, roughness: 0.8, metalness: 0.05, ...(opacity < 1 ? { opacity } : {}) };
 }
 
 export function createPart(opts: Partial<AssetPart> & { shape: ShapeType; name: string }): AssetPart {
@@ -321,3 +328,4 @@ export function groundOffsetY(root: AssetPart): number {
 export * from './templates.ts';
 export * from './character.ts';
 export * from './scene.ts';
+export * from './animation.ts';

@@ -151,6 +151,10 @@ export async function renderScene(root: HTMLElement, id?: string) {
       <button class="btn small mode" data-tool="lower">降低 ▼</button>
       <button class="btn small mode" data-tool="flatten">平整 ⬌</button>
       <span class="sep"></span>
+      <span class="muted">水体：</span>
+      <button class="btn small mode" data-tool="water">💧 注水</button>
+      <button class="btn small mode" data-tool="dry">🚫 排水</button>
+      <span class="sep"></span>
       <label class="field inline">半径 <input type="range" min="1" max="10" step="0.5" value="3" data-brush-size /><span data-brush-size-v>3</span></label>
       <label class="field inline">强度 <input type="range" min="0.1" max="2" step="0.1" value="0.6" data-brush-strength /><span data-brush-strength-v>0.6</span></label>
       <span class="sep"></span>
@@ -187,6 +191,7 @@ export async function renderScene(root: HTMLElement, id?: string) {
     });
     toolbar.querySelector('[data-reset]')!.addEventListener('click', () => {
       scene.terrain.heights = scene.terrain.heights.map(() => 0);
+      scene.terrain.water = scene.terrain.water.map(() => 0);
       void viewport.setScene(scene, assets);
       markDirty('地形已重置');
     });
@@ -264,7 +269,7 @@ export async function renderScene(root: HTMLElement, id?: string) {
       body.innerHTML = '<p class="muted">选择「放置」后点击地形放置元件；点击已放置的元件可在此调整变换。</p>';
     } else {
       body.innerHTML =
-        '<p class="muted">地形模式：左键拖动笔刷抬高/降低地形，右键拖动旋转视角，滚轮缩放。用水位滑块控制水面高度。</p>';
+        '<p class="muted">地形模式：左键拖动笔刷抬高/降低地形，右键拖动旋转视角，滚轮缩放。用「注水/排水」笔刷在地形上画局部河流与池塘，用水位滑块控制全局水面高度。</p>';
     }
   }
 

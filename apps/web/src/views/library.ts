@@ -1,5 +1,6 @@
 import { navBar, categoryLabel } from './_shared.ts';
-import { listAssets, deleteAsset, duplicateAsset, renameAsset, subscribe } from '../lib/api.ts';
+import { listAssets, deleteAsset, duplicateAsset, renameAsset, createAsset, subscribe } from '../lib/api.ts';
+import { buildWaterfallAsset, PREFAB_TEMPLATES } from '@shape-craft/schema';
 import type { AssetComponent } from '@shape-craft/schema';
 
 export function renderLibrary(root: HTMLElement) {
@@ -17,6 +18,22 @@ export function renderLibrary(root: HTMLElement) {
     <a class="btn primary" href="#/editor">+ 新建元件</a>
   `;
   wrap.appendChild(header);
+
+  // ---- Quick presets: one-click add of rule-generated prefabs ----
+  const presets = document.createElement('div');
+  presets.className = 'quickbar';
+  presets.innerHTML = '<span class="muted">预设元件 Presets：</span>';
+  for (const t of PREFAB_TEMPLATES) {
+    const b = document.createElement('button');
+    b.className = 'btn small';
+    b.textContent = t.label;
+    b.addEventListener('click', async () => {
+      await createAsset(buildWaterfallAsset());
+      await refresh();
+    });
+    presets.appendChild(b);
+  }
+  wrap.appendChild(presets);
 
   const grid = document.createElement('div');
   grid.className = 'asset-grid';

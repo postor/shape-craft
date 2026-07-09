@@ -57,15 +57,26 @@ export class CharacterAnimator {
     return [...this.clips.keys()];
   }
 
-  play(name: string) {
+  play(name: string, resetTime = true) {
     const clip = this.clips.get(name) ?? null;
     if (clip && clip !== this.current) {
       this.current = clip;
-      this.time = 0;
+      if (resetTime) this.time = 0;
     } else if (clip) {
       this.current = clip;
     }
     this.playing = true;
+  }
+
+  /** Force rebind + re-apply the rest pose (used to freeze a character). */
+  applyRest() {
+    for (const [joint, rest] of this.restRot) {
+      const bone = this.bones.get(joint);
+      if (bone) bone.rotation.copy(rest);
+    }
+    this.current = null;
+    this.playing = false;
+    this.time = 0;
   }
 
   setPlaying(p: boolean) {

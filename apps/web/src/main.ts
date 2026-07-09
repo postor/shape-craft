@@ -5,6 +5,9 @@ import { renderEditor } from './views/editor.ts';
 import { renderSettings } from './views/settings.ts';
 import { renderCharacters } from './views/characters.ts';
 import { renderScene } from './views/scene.ts';
+import { renderAnimation } from './views/animation.ts';
+import { maybeRunSelfTests } from './lib/selftest.ts';
+import { renderRoam } from './views/roam.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -63,9 +66,20 @@ function route() {
   } else if (parts[0] === 'scenes') {
     const id = parts[1];
     void renderScene(app, id);
+  } else if (parts[0] === 'roam') {
+    const id = parts[1];
+    void renderRoam(app, id);
+  } else if (parts[0] === 'animations') {
+    const id = parts[1];
+    void renderAnimation(app, id);
   } else {
     renderHome(app);
   }
+
+  // Parameter-controlled self-test harness (?test=schema|api|all). Runs
+  // regardless of route and prints results to the console (mirrored to the
+  // on-page #__console when log=1).
+  maybeRunSelfTests();
 }
 
 window.addEventListener('hashchange', () => { __dbg.style.display = __debugEnabled() ? 'block' : 'none'; });

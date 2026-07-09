@@ -14,6 +14,7 @@ import { createDimensionOverlay } from '../lib/ruler.ts';
 import { resolveRefs, buildInstanceReference, findPart, type RefMap } from '../lib/instance.ts';
 import { runAgent, verifyAsset, type AgentResult } from '../lib/agent.ts';
 import { loadSettings } from '../lib/settings.ts';
+import { createChatHistory } from '../lib/chat-history.ts';
 
 export async function renderEditor(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
@@ -218,7 +219,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   // re-render would erase conversation history).
   function buildRightPanel() {
     right.innerHTML = '<h4>属性</h4><div class="inspector-body"></div><h4 class="chat-title">聊天建造</h4><div class="chat"></div>';
-    renderChat(right.querySelector('.chat') as HTMLElement);
+    renderChat(right.querySelector('.chat') as HTMLElement, `asset:${savedId ?? 'new'}`);
     renderInspectorBody();
   }
 
@@ -377,7 +378,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
   }
 
   // ---- Chat ----
-  function renderChat(host: HTMLElement) {
+  function renderChat(host: HTMLElement, scope: string) {
     host.innerHTML = `
       <div class="chat-log"></div>
       <div class="chat-input">
@@ -408,7 +409,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
         statusText.textContent = '';
       }
     };
-    let lastSent = '';
+    const history = createChatHistory(scope);
 
     const addMsg = (text: string, who: 'user' | 'bot') => {
       const m = document.createElement('div');
@@ -422,7 +423,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     const sendMsg = async () => {
       const text = input.value.trim();
       if (!text) return;
-      lastSent = text;
+      history.push(text);
       addMsg(text, 'user');
       input.value = '';
       send.disabled = true;
@@ -530,10 +531,17 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         sendMsg();
-      } else if (e.key === 'ArrowUp' && lastSent) {
+      } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        input.value = lastSent;
-        input.setSelectionRange(lastSent.length, lastSent.length);
+        const prev = history.prev();
+        if (prev !== null) {
+          input.value = prev;
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        input.value = history.next();
+        input.setSelectionRange(input.value.length, input.value.length);
       }
     });
     addMsg('你好！我可以修改当前元件（如“把屋顶改成红色”“加一扇门”），也能插入引用其它元件，并自动保存。', 'bot');
