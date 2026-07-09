@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "db:export": "tsx src/db-io.ts export",
-    "db:import": "tsx src/db-io.ts import"
+    "db:import": "tsx src/db-io.ts import",
+    "db:import-json": "tsx src/db-io.ts import-json"
   },
   "dependencies": {
     "@shape-craft/schema": "workspace:*",
