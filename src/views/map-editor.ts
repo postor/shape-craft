@@ -1,4 +1,3 @@
-import { navBar } from './_shared.ts';
 import { getMap, createMap, updateMap, deleteMap } from '../lib/map-api.ts';
 import { listAssets } from '../lib/api.ts';
 import {
@@ -15,8 +14,7 @@ import { runMapAgent } from '../lib/map-agent.ts';
 
 export async function renderMapEditor(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page editor-page';
-  wrap.appendChild(navBar('map'));
+  wrap.className = 'editor-page';
   root.appendChild(wrap);
 
   let map: MapComponent;
@@ -75,6 +73,13 @@ export async function renderMapEditor(root: HTMLElement, id?: string) {
     onPlace: (point) => placeInstance(point),
     onChange: () => scheduleSave(),
   });
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
 
   // ---- Left: tools + placed instances ----
   left.innerHTML = `

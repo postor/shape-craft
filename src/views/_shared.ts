@@ -1,6 +1,6 @@
 import { ASSET_CATEGORIES } from '../schema';
 
-export function navBar(active: 'home' | 'library' | 'settings' | 'characters' | 'scene' | 'map' | 'animation' | 'roam'): HTMLElement {
+export function navBar(active: 'home' | 'library' | 'settings' | 'characters' | 'scene' | 'map' | 'animation' | 'roam' | 'play'): HTMLElement {
   const nav = document.createElement('nav');
   nav.className = 'topnav';
   nav.innerHTML = `
@@ -11,6 +11,7 @@ export function navBar(active: 'home' | 'library' | 'settings' | 'characters' | 
       <a href="#/characters" class="${active === 'characters' ? 'active' : ''}">角色</a>
       <a href="#/scenes" class="${active === 'scene' ? 'active' : ''}">场景</a>
       <a href="#/roam" class="${active === 'roam' ? 'active' : ''}">漫游</a>
+      <a href="#/record" class="${active === 'play' ? 'active' : ''}">扮演视频</a>
       <a href="#/animations" class="${active === 'animation' ? 'active' : ''}">动画</a>
       <a class="demo-link" href="#/demo">▶ 劫案 Demo</a>
       <a href="#/settings" class="${active === 'settings' ? 'active' : ''}">设置</a>

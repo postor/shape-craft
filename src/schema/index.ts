@@ -124,6 +124,27 @@ export interface AssetComponent {
    * additive — older assets without it keep using the presets.
    */
   animClips?: AnimClip[];
+  /**
+   * Custom script slots. Each slot binds a Unity-style `update(t, dt)` script to
+   * a part (by id); the runtime calls it every frame while the asset is previewed.
+   * `self` is the part's Object3D, `scene` is the asset root, `THREE` is the
+   * three.js namespace. Optional and additive — assets without it stay static.
+   */
+  scripts?: ScriptSlot[];
+}
+
+/**
+ * A custom script slot. The engine compiles `code` once (a Unity-style
+ * `update(t, dt)` function, optionally a `start()` initializer) and invokes it
+ * every frame for the part identified by `partId`.
+ */
+export interface ScriptSlot {
+  id: string;
+  /** Id of the part this script is attached to. */
+  partId: string;
+  name: string;
+  /** Source code. Define `function update(t, dt) {}` (and optionally `start() {}`). */
+  code: string;
 }
 
 /** Shape of the payload accepted when creating/updating an asset. */
@@ -331,3 +352,4 @@ export * from './scene.ts';
 export * from './animation.ts';
 export * from './map.ts';
 export * from './prefabs.ts';
+export * from './record.ts';

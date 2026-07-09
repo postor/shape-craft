@@ -30,8 +30,8 @@ import {
   createAnimationForScene,
 } from '../schema';
 import { createAsset } from '../lib/api.ts';
-import { createScene } from '../lib/scene-api.ts';
-import { createAnimation } from '../lib/anim-api.ts';
+import { createScene, deleteScene, listScenes } from '../lib/scene-api.ts';
+import { createAnimation, deleteAnimation, listAnimationsByScene } from '../lib/anim-api.ts';
 import {
   locomotiveAsset,
   trainCarAsset,
@@ -41,10 +41,10 @@ import {
   cavalryDefenderAsset,
   defenderAsset,
 } from '../schema';
-import { listScenes } from '../lib/scene-api.ts';
-import { listAnimationsByScene } from '../lib/anim-api.ts';
 
-export const DEMO_NAME = '火车大劫案 Train Robbery';
+export const DEMO_NAME = '火车大劫案 Train Robbery · v2';
+/** Base name used to clean up any older (buggy) demo builds before rebuilding. */
+const DEMO_BASE = '火车大劫案 Train Robbery';
 const DURATION = 40;
 /** Battle begins near map center at this time (riders arrive from the corner). */
 const MEET_T = 15;
@@ -101,12 +101,14 @@ function yawOf(a: XZ, b: XZ): number {
 }
 
 /** Terrain elevation sampled with the SAME formula used to build the mesh, so
- * objects can be grounded on the rolling hills instead of sinking below them. */
+ * objects can be grounded on the rolling hills instead of sinking below them.
+ * Hills only rise gently at the very edges of the map, so charging riders never
+ * climb a slope that reads as "riding up into the sky". */
 function terrainHeightAt(x: number, z: number): number {
   let h = 0;
-  h += Math.max(0, Math.abs(x) - 34) * 0.28;
-  h += Math.max(0, Math.abs(z) - 30) * 0.22;
-  if (h > 0) h += Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.6;
+  h += Math.max(0, Math.abs(x) - 40) * 0.1;
+  h += Math.max(0, Math.abs(z) - 38) * 0.08;
+  if (h > 0) h += Math.sin(x * 0.18) * Math.cos(z * 0.15) * 0.35;
   return h;
 }
 
@@ -115,13 +117,25 @@ export interface DirectorResult {
   animationId: string;
 }
 
-/** Return the existing demo (if any) or build it fresh. Idempotent. */
+/**
+ * Return the existing demo (if any) or build it fresh. The demo is versioned by
+ * name: if an older (possibly buggy) build exists it is removed first so code
+ * fixes — e.g. the rider-hit close-up or the "rider rode into the sky" bug —
+ * are actually visible to the user instead of being masked by a stale save.
+ */
 export async function getOrBuildTrainRobbery(): Promise<DirectorResult> {
   const scenes = await listScenes();
-  const existing = scenes.find((s) => s.name === DEMO_NAME);
-  if (existing) {
-    const anims = await listAnimationsByScene(existing.id);
-    if (anims.length) return { sceneId: existing.id, animationId: anims[0].id };
+  const current = scenes.find((s) => s.name === DEMO_NAME);
+  if (current) {
+    const anims = await listAnimationsByScene(current.id);
+    if (anims.length) return { sceneId: current.id, animationId: anims[0].id };
+  }
+  // Tear down any older builds sharing the base name, then rebuild fresh.
+  const stale = scenes.filter((s) => s.name.startsWith(DEMO_BASE) && s.name !== DEMO_NAME);
+  for (const s of stale) {
+    const anims = await listAnimationsByScene(s.id);
+    for (const a of anims) await deleteAnimation(a.id);
+    await deleteScene(s.id);
   }
   return buildTrainRobbery();
 }
@@ -175,13 +189,13 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
   // don't pass through the train to the far side.
   // index 1 = pretend-attack slow-mo; index 2 & 5 = shot and flip over.
   const banditCfg: { s: XZ; m: XZ; e: XZ }[] = [
-    { s: { x: -42, z: 24 }, m: { x: -3, z: 4 }, e: { x: 40, z: 8 } },
-    { s: { x: -44, z: 27 }, m: { x: 2, z: 3 }, e: { x: 40, z: 6 } },
+    { s: { x: -42, z: 24 }, m: { x: -3, z: 4 }, e: { x: 30, z: 9 } },
+    { s: { x: -44, z: 27 }, m: { x: 2, z: 3 }, e: { x: 32, z: 6 } },
     { s: { x: -40, z: 29 }, m: { x: 5, z: 6 }, e: { x: 26, z: 16 } },
-    { s: { x: -45, z: 22 }, m: { x: -5, z: 5 }, e: { x: 36, z: 9 } },
-    { s: { x: -43, z: 26 }, m: { x: 7, z: 3 }, e: { x: 40, z: 7 } },
+    { s: { x: -45, z: 22 }, m: { x: -5, z: 5 }, e: { x: 34, z: 10 } },
+    { s: { x: -43, z: 26 }, m: { x: 7, z: 3 }, e: { x: 33, z: 7 } },
     { s: { x: -41, z: 30 }, m: { x: 1, z: 7 }, e: { x: 32, z: 17 } },
-    { s: { x: -39, z: 23 }, m: { x: -6, z: 4 }, e: { x: 42, z: 6 } },
+    { s: { x: -39, z: 23 }, m: { x: -6, z: 4 }, e: { x: 35, z: 6 } },
   ];
   const ATTACK = 1; // bandit index that mimes the slow-mo attack
   const HIT_RIDER = 4; // bandit whose RIDER is shot (close-up slow-mo)
@@ -190,8 +204,8 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
   // Mounted defenders — also ride in from the same corner to intercept, staying
   // on the +z side of the track.
   const mountDefCfg: { s: XZ; m: XZ; e: XZ }[] = [
-    { s: { x: -43, z: 20 }, m: { x: -1, z: 3 }, e: { x: 44, z: 6 } },
-    { s: { x: -45, z: 23 }, m: { x: 3, z: 2 }, e: { x: 44, z: 5 } },
+    { s: { x: -43, z: 20 }, m: { x: -1, z: 3 }, e: { x: 36, z: 6 } },
+    { s: { x: -45, z: 23 }, m: { x: 3, z: 2 }, e: { x: 37, z: 5 } },
   ];
 
   const objects: SceneObject[] = [];
@@ -293,7 +307,7 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
   //   17-20 attack slow-mo HOLD (close on bandit 2)
   //   21-25 defender-fall slow-mo zoom HOLD (car 1)
   //   26-30 horse-topple close-up slow-mo HOLD (bandit 3)
-  //   31-36 RIDER-hit close-up slow-mo HOLD (bandit 5 rider shot off the horse)
+  //   31-37 RIDER-hit close-up slow-mo HOLD (bandit 5 rider shot off the horse)
   //   40    pull back, train escapes
   const cam = anim.tracks.find((t) => t.kind === 'camera')!;
   const tgt = anim.tracks.find((t) => t.kind === 'cameraTarget')!;
@@ -317,8 +331,9 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
     { time: 26, position: v(flip2.x - 3, 3, flip2.z + 8), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     { time: 30, position: v(flip2.x - 3, 3, flip2.z + 8), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     // rider-hit close-up slow-mo: tight on the rider being shot off the horse
-    { time: 31, position: v(hit5.x + 2.5, hitGY + 3, hit5.z + 5), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
-    { time: 36, position: v(hit5.x + 2.5, hitGY + 3, hit5.z + 5), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
+    { time: 31, position: v(hit5.x + 2.2, hitGY + 2.4, hit5.z + 4.2), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
+    { time: 34, position: v(hit5.x + 1.8, hitGY + 1.8, hit5.z + 3.8), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
+    { time: 37, position: v(hit5.x + 2.2, hitGY + 2.0, hit5.z + 4.2), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     { time: DURATION, position: v(52, 20, 30), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
   ];
   tgt.keyframes = [
@@ -331,9 +346,10 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
     { time: 25, position: v(carX(1, 21), 1.5, 3), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     { time: 26, position: v(flip2.x, 2, flip2.z), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     { time: 30, position: v(flip2.x, 1.5, flip2.z), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
-    // aim at the rider's upper body (chest height on the horse)
+    // aim at the rider: starts at chest height, follows him down as he is thrown off
     { time: 31, position: v(hit5.x, hitGY + 2.8, hit5.z), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
-    { time: 36, position: v(hit5.x, hitGY + 1.4, hit5.z + 1), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
+    { time: 34, position: v(hit5.x + 0.4, hitGY + 1.6, hit5.z + 0.6), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
+    { time: 37, position: v(hit5.x + 1.0, hitGY + 0.7, hit5.z + 2.0), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
     { time: DURATION, position: v(42, 2, 0), rotation: v(0, 0, 0), scale: v(1, 1, 1) },
   ];
 
@@ -422,10 +438,10 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
         ]),
       );
     } else if (i === HIT_RIDER) {
-      // slow-mo RIDER hit: the rider recoils backward when shot, then slumps
-      // forward and slides off the horse to the ground (camera holds close).
+      // slow-mo RIDER hit: the rider is struck, jerks backward, then topples
+      // off the horse and crashes to the ground (camera holds close on him).
       const Te = 31;
-      const Fd = 5;
+      const Fd = 6;
       const pf = pathAt(c.s, c.m, c.e, Te);
       const th = (x: number, z: number) => terrainHeightAt(x, z);
       anim.tracks.push(
@@ -433,15 +449,15 @@ export async function buildTrainRobbery(): Promise<DirectorResult> {
           { t: 0, pos: v(c.s.x, gy(c.s.x, c.s.z), c.s.z), rot: v(0, approachYaw, 0), state: 'walk' },
           { t: MEET_T, pos: v(c.m.x, gy(c.m.x, c.m.z), c.m.z), rot: v(0, FACE_X, 0), state: 'walk' },
           { t: Te - 0.6, pos: v(pf.x, gy(pf.x, pf.z), pf.z), rot: v(0, FACE_X, 0), state: 'walk' },
-          // rider is struck — jerks backward, still mounted, horse halts
-          { t: Te, pos: v(pf.x, gy(pf.x, pf.z), pf.z), rot: v(-0.45, FACE_X, 0), state: 'idle' },
-          { t: Te + 0.6, pos: v(pf.x, gy(pf.x, pf.z), pf.z), rot: v(-0.3, FACE_X, 0.15), state: 'idle' },
-          // slumps forward and begins tipping off the saddle
-          { t: Te + 1.6, pos: v(pf.x + 0.4, gy(pf.x, pf.z + 0.6) - 0.2, pf.z + 0.6), rot: v(0.5, FACE_X, 0.5), state: 'none' },
-          { t: Te + 3.0, pos: v(pf.x + 0.8, th(pf.x, pf.z + 1.6) + horseG * 0.7, pf.z + 1.6), rot: v(0.3, FACE_X, 1.1), state: 'none' },
-          // rider hits the ground beside the horse
-          { t: Te + Fd, pos: v(pf.x + 1, th(pf.x, pf.z + 2.6) + horseG * 0.5, pf.z + 2.6), rot: v(0, FACE_X, Math.PI / 2), state: 'none' },
-          { t: DURATION, pos: v(pf.x + 1, th(pf.x, pf.z + 2.6) + horseG * 0.5, pf.z + 2.6), rot: v(0, FACE_X, Math.PI / 2), state: 'none' },
+          // struck — rears back, still mounted, horse rears to a halt
+          { t: Te, pos: v(pf.x, gy(pf.x, pf.z), pf.z), rot: v(-0.5, FACE_X, 0), state: 'idle' },
+          { t: Te + 0.8, pos: v(pf.x, gy(pf.x, pf.z), pf.z), rot: v(-0.35, FACE_X, 0), state: 'idle' },
+          // topples backward out of the saddle, tipping toward the ground
+          { t: Te + 2.0, pos: v(pf.x + 0.3, gy(pf.x, pf.z) - 0.3, pf.z + 0.4), rot: v(0.4, FACE_X, 0.4), state: 'none' },
+          { t: Te + 3.5, pos: v(pf.x + 0.7, th(pf.x, pf.z + 1.4) + horseG * 0.6, pf.z + 1.4), rot: v(1.2, FACE_X, 0.9), state: 'none' },
+          // rider hits the dirt beside the horse, lying on the ground
+          { t: Te + Fd, pos: v(pf.x + 1, th(pf.x, pf.z + 2.4) + horseG * 0.45, pf.z + 2.4), rot: v(Math.PI / 2, FACE_X, 1.0), state: 'none' },
+          { t: DURATION, pos: v(pf.x + 1, th(pf.x, pf.z + 2.4) + horseG * 0.45, pf.z + 2.4), rot: v(Math.PI / 2, FACE_X, 1.0), state: 'none' },
         ]),
       );
     } else {

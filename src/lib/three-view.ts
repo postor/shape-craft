@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import type { AssetPart } from '../schema';
+import type { AssetPart, ScriptSlot } from '../schema';
 import { buildPartObject, type RefResolver } from './scene-graph.ts';
 import { createAxisRuler } from './ruler.ts';
+import { ScriptRuntime } from './script-runtime.ts';
 
 export type TransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -29,6 +30,7 @@ export class Viewport {
   private ruler: THREE.Group;
   private frameCallbacks: Array<(dt: number) => void> = [];
   private clock = new THREE.Clock();
+  private scriptStop: (() => void) | null = null;
 
   constructor(
     container: HTMLElement,
@@ -132,6 +134,23 @@ export class Viewport {
     this.selectedId = id;
     this.refreshSelection();
     this.attachGizmo(id);
+  }
+
+  /**
+   * Bind custom script slots to the currently-built asset root and drive them
+   * every frame. Passing `undefined`/`[]` stops any previously running scripts.
+   * Must be called AFTER `setRoot` (the holder graph it maps part ids to must
+   * already exist). Rebuilding the scene (another `setRoot`) invalidates the
+   * holder references, so call `setScripts` again afterwards.
+   */
+  setScripts(scripts?: ScriptSlot[]): void {
+    if (this.scriptStop) {
+      this.scriptStop();
+      this.scriptStop = null;
+    }
+    if (!scripts || scripts.length === 0) return;
+    const rt = new ScriptRuntime(this.rootGroup, scripts);
+    this.scriptStop = this.onFrame((dt) => rt.tick(dt));
   }
 
   setTransformMode(mode: TransformMode) {
@@ -242,6 +261,7 @@ export class Viewport {
   }
 
   dispose() {
+    if (this.scriptStop) this.scriptStop();
     this.renderer.dispose();
     this.controls.dispose();
     this.transform.detach();

@@ -1,4 +1,3 @@
-import { navBar } from './_shared.ts';
 import {
   type SceneComponent,
   type SceneObject,
@@ -17,8 +16,7 @@ import { listAssets } from '../lib/api.ts';
 
 export async function renderScene(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page scene-page';
-  wrap.appendChild(navBar('scene'));
+  wrap.className = 'scene-page';
   root.appendChild(wrap);
 
   // ---- Layout ----
@@ -58,6 +56,13 @@ export async function renderScene(root: HTMLElement, id?: string) {
     onObjectChange: () => markDirty('物件已移动'),
     onSelect: (oid) => renderInspector(oid),
   });
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
 
   // ---- Top bar ----
   const topbar = document.createElement('div');

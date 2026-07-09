@@ -1,14 +1,6 @@
 import './style.css';
-import { renderHome } from './views/home.ts';
-import { renderLibrary } from './views/library.ts';
-import { renderEditor } from './views/editor.ts';
-import { renderSettings } from './views/settings.ts';
-import { renderCharacters } from './views/characters.ts';
-import { renderScene } from './views/scene.ts';
-import { renderAnimation } from './views/animation.ts';
-import { renderDemo } from './views/demo.ts';
+import { mountApp } from './ui/mount';
 import { maybeRunSelfTests } from './lib/selftest.ts';
-import { renderRoam } from './views/roam.ts';
 import { setupPWAUpdate } from './lib/pwa.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -46,49 +38,11 @@ console.warn = (...a: unknown[]) => { __push('warn', a); __owarn(...a); };
 console.error = (...a: unknown[]) => { __push('error', a); __oerr(...a); };
 (window as unknown as { __dbg: HTMLElement }).__dbg = __dbg;
 
-function route() {
-  const hash = location.hash || '#/';
-  const path = hash.split('?')[0]; // strip query string (e.g. `#/editor?ref=1`)
-  const parts = path.replace(/^#\//, '').split('/').filter(Boolean);
-  app.innerHTML = '';
+// ---- Mount the React application (owns routing + rendering) ----
+mountApp(app);
 
-  if (parts.length === 0) {
-    renderHome(app);
-  } else if (parts[0] === 'library') {
-    renderLibrary(app);
-  } else if (parts[0] === 'editor') {
-    const id = parts[1]; // undefined => new
-    renderEditor(app, id);
-  } else if (parts[0] === 'characters') {
-    const type = parts[1]; // optional: humanoid | quadruped | flying
-    const id = parts[2]; // optional: existing asset id
-    void renderCharacters(app, type, id);
-  } else if (parts[0] === 'settings') {
-    renderSettings(app);
-  } else if (parts[0] === 'scenes') {
-    const id = parts[1];
-    void renderScene(app, id);
-  } else if (parts[0] === 'roam') {
-    const id = parts[1];
-    void renderRoam(app, id);
-  } else if (parts[0] === 'animations') {
-    const id = parts[1];
-    void renderAnimation(app, id);
-  } else if (parts[0] === 'demo') {
-    void renderDemo(app);
-  } else {
-    renderHome(app);
-  }
-
-  // Parameter-controlled self-test harness (?test=schema|api|all). Runs
-  // regardless of route and prints results to the console (mirrored to the
-  // on-page #__console when log=1).
-  maybeRunSelfTests();
-}
-
-window.addEventListener('hashchange', () => { __dbg.style.display = __debugEnabled() ? 'block' : 'none'; });
-window.addEventListener('hashchange', route);
-route();
+// Run parameter-controlled self-tests (?test=schema|api|all) when present.
+maybeRunSelfTests();
 
 // Register the service worker for offline support + update prompts.
 setupPWAUpdate();

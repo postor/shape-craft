@@ -1,4 +1,3 @@
-import { navBar } from './_shared.ts';
 import { type AssetComponent } from '../schema';
 import { RoamViewport, type RoamMode } from '../lib/roam-view.ts';
 import { listScenes, getScene } from '../lib/scene-api.ts';
@@ -6,8 +5,7 @@ import { listAssets } from '../lib/api.ts';
 
 export async function renderRoam(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page roam-page';
-  wrap.appendChild(navBar('roam'));
+  wrap.className = 'roam-page';
 
   const topbar = document.createElement('div');
   topbar.className = 'editor-topbar roam-topbar';
@@ -92,6 +90,14 @@ export async function renderRoam(root: HTMLElement, id?: string) {
       }
     },
   });
+
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
 
   function updateRecTime() {
     const s = Math.floor((Date.now() - recStart) / 1000);

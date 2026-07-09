@@ -1,4 +1,4 @@
-import { navBar, categoryLabel } from './_shared.ts';
+import { categoryLabel } from './_shared.ts';
 import { getAsset, createAsset, updateAsset, deleteAsset, listAssets } from '../lib/api.ts';
 import {
   AssetComponent,
@@ -22,8 +22,7 @@ import { CharacterAnimator } from '../lib/character-anim.ts';
 
 export async function renderCharacters(root: HTMLElement, type?: string, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page editor-page';
-  wrap.appendChild(navBar('characters'));
+  wrap.className = 'editor-page';
   root.appendChild(wrap);
 
   let asset: AssetComponent;
@@ -101,6 +100,13 @@ export async function renderCharacters(root: HTMLElement, type?: string, id?: st
     (pid) => selectPart(pid),
     (pid, t) => applyTransform(pid, t),
   );
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
   const animator = new CharacterAnimator(viewport.getRootGroup());
   animator.setClips(getClips());
   viewport.onFrame((dt) => animator.update(dt));

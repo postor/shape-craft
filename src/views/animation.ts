@@ -1,4 +1,3 @@
-import { navBar } from './_shared.ts';
 import {
   type SceneComponent,
   type AssetComponent,
@@ -40,8 +39,7 @@ function trackUid(): string {
 
 export async function renderAnimation(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page editor-page';
-  wrap.appendChild(navBar('animation'));
+  wrap.className = 'editor-page';
   root.appendChild(wrap);
 
   // ---- Layout ----
@@ -66,6 +64,13 @@ export async function renderAnimation(root: HTMLElement, id?: string) {
   center.appendChild(viewportHost);
 
   const viewport = new AnimationViewport(viewportHost);
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
   viewport.onTimeTick = (t) => {
     if (scrub) scrub.value = String(t);
     if (timeLabel) timeLabel.textContent = t.toFixed(2) + 's';

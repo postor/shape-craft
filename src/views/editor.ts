@@ -1,12 +1,14 @@
-import { navBar, categoryOptions } from './_shared.ts';
+import { categoryOptions } from './_shared.ts';
 import { getAsset, createAsset, updateAsset, deleteAsset, listAssets } from '../lib/api.ts';
 import {
   AssetComponent,
   AssetPart,
   AssetCategory,
+  ScriptSlot,
   createPart,
   createEmptyAsset,
   defaultMaterial,
+  uid,
   vec3,
 } from '../schema';
 import { Viewport } from '../lib/three-view.ts';
@@ -18,8 +20,7 @@ import { createChatHistory } from '../lib/chat-history.ts';
 
 export async function renderEditor(root: HTMLElement, id?: string) {
   const wrap = document.createElement('div');
-  wrap.className = 'page editor-page';
-  wrap.appendChild(navBar('library'));
+  wrap.className = 'editor-page';
   root.appendChild(wrap);
 
   let asset: AssetComponent;
@@ -138,6 +139,13 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     (pid) => selectPart(pid),
     (id, t) => applyTransform(id, t),
   );
+  (root as HTMLElement & { __dispose?: () => void }).__dispose = () => {
+    try {
+      viewport.dispose();
+    } catch {
+      /* already torn down */
+    }
+  };
 
   const updateDimensions = createDimensionOverlay(viewportHost);
 
@@ -337,7 +345,86 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     });
     form.appendChild(del);
 
+    // Custom script slots bound to this part (Unity-style update(t, dt)).
+    form.appendChild(scriptPanel(part));
+
     return form;
+  }
+
+  /**
+   * Editor panel for a part's custom scripts. Lists every script slot bound to
+   * `part`, lets the user edit its source, apply (recompile + run), or delete
+   * it. "Add script" creates a new slot with a spinning-cube starter.
+   */
+  function scriptPanel(part: AssetPart): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'group script-group';
+    wrap.innerHTML = '<div class="group-title">脚本 Scripts（Unity 式 update）</div>';
+
+    const list = document.createElement('div');
+    list.className = 'script-list';
+    const slots = (asset.scripts ?? []).filter((s) => s.partId === part.id);
+    for (const slot of slots) list.appendChild(scriptRow(slot));
+    wrap.appendChild(list);
+
+    const add = document.createElement('button');
+    add.className = 'btn small full';
+    add.textContent = '+ 添加脚本';
+    add.addEventListener('click', () => {
+      asset.scripts = asset.scripts ?? [];
+      const slot: ScriptSlot = {
+        id: uid(),
+        partId: part.id,
+        name: 'Script',
+        code: '// Unity-style: called every frame.\n// t = total seconds, dt = frame delta.\n// self = this part, scene = asset root, THREE = three.js\nfunction update(t, dt) {\n  self.rotation.y += dt;\n}\n',
+      };
+      asset.scripts.push(slot);
+      viewport.setScripts(asset.scripts);
+      renderInspectorBody();
+    });
+    wrap.appendChild(add);
+    return wrap;
+  }
+
+  function scriptRow(slot: ScriptSlot): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'script-row';
+
+    const name = document.createElement('input');
+    name.className = 'script-name';
+    name.value = slot.name;
+    name.addEventListener('input', () => { slot.name = name.value; });
+
+    const ta = document.createElement('textarea');
+    ta.className = 'script-code';
+    ta.spellcheck = false;
+    ta.value = slot.code;
+    ta.addEventListener('input', () => { slot.code = ta.value; });
+
+    const apply = document.createElement('button');
+    apply.className = 'btn tiny primary';
+    apply.textContent = '应用';
+    apply.addEventListener('click', () => {
+      slot.code = ta.value;
+      slot.name = name.value;
+      viewport.setScripts(asset.scripts);
+    });
+
+    const del = document.createElement('button');
+    del.className = 'btn tiny danger';
+    del.textContent = '删除';
+    del.addEventListener('click', () => {
+      asset.scripts = (asset.scripts ?? []).filter((s) => s.id !== slot.id);
+      viewport.setScripts(asset.scripts);
+      renderInspectorBody();
+    });
+
+    const head = document.createElement('div');
+    head.className = 'script-head';
+    head.append(name, apply, del);
+
+    row.append(head, ta);
+    return row;
   }
 
   /** Read-only inspector for a locked instance reference. */
@@ -558,6 +645,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
     console.log('[editor] refresh: instances in asset.root=', instCount, 'refs.size=', refs.size);
     viewport.setRoot(asset.root, (id) => refs.get(id) ?? null);
     if (selectedId) viewport.setSelected(selectedId);
+    viewport.setScripts(asset.scripts);
   }
   function refreshAll() {
     void refresh();
@@ -665,6 +753,7 @@ export async function renderEditor(root: HTMLElement, id?: string) {
       description: asset.description,
       root: asset.root,
       thumbnail: asset.thumbnail,
+      scripts: asset.scripts,
     };
   }
 
