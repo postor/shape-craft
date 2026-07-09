@@ -5,6 +5,11 @@ export default defineConfig({
   // Relative base so the built assets resolve correctly when served from a
   // sub-path (e.g. GitHub Pages project site /<repo>/...).
   base: './',
+  // Output the production build to `docs/` so it can be served by GitHub Pages.
+  build: {
+    outDir: 'docs',
+    emptyOutDir: true,
+  },
   server: {
     port: 5173,
     proxy: {
