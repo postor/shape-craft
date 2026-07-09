@@ -1,6 +1,6 @@
 import { navBar, categoryLabel } from './_shared.ts';
 import { listAssets, deleteAsset, duplicateAsset, renameAsset, createAsset, subscribe } from '../lib/api.ts';
-import { buildWaterfallAsset, PREFAB_TEMPLATES } from '@shape-craft/schema';
+import { PREFAB_TEMPLATES } from '@shape-craft/schema';
 import type { AssetComponent } from '@shape-craft/schema';
 
 export function renderLibrary(root: HTMLElement) {
@@ -28,7 +28,12 @@ export function renderLibrary(root: HTMLElement) {
     b.className = 'btn small';
     b.textContent = t.label;
     b.addEventListener('click', async () => {
-      await createAsset(buildWaterfallAsset());
+      await createAsset({
+        name: t.defaultName,
+        category: t.key as never,
+        description: '',
+        root: t.build(),
+      });
       await refresh();
     });
     presets.appendChild(b);

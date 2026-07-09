@@ -329,3 +329,4 @@ export * from './templates.ts';
 export * from './character.ts';
 export * from './scene.ts';
 export * from './animation.ts';
+export * from './prefabs.ts';

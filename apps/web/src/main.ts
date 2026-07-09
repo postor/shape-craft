@@ -6,6 +6,7 @@ import { renderSettings } from './views/settings.ts';
 import { renderCharacters } from './views/characters.ts';
 import { renderScene } from './views/scene.ts';
 import { renderAnimation } from './views/animation.ts';
+import { renderDemo } from './views/demo.ts';
 import { maybeRunSelfTests } from './lib/selftest.ts';
 import { renderRoam } from './views/roam.ts';
 
@@ -72,6 +73,8 @@ function route() {
   } else if (parts[0] === 'animations') {
     const id = parts[1];
     void renderAnimation(app, id);
+  } else if (parts[0] === 'demo') {
+    void renderDemo(app);
   } else {
     renderHome(app);
   }

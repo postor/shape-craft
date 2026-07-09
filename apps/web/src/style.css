@@ -38,6 +38,8 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #06140a; font-weight: 600; }
+.btn.accent { background: linear-gradient(135deg, #ff7a3c, #e23b3b); border-color: transparent; color: #fff; font-weight: 700; }
+.demo-link { color: #ff8a4c !important; font-weight: 700; }
 .btn.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
 .btn.small { padding: 5px 10px; font-size: 13px; }
 .btn.mode.active { background: var(--accent); border-color: var(--accent); color: #06140a; font-weight: 600; }
@@ -199,6 +201,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 .anim-controls .field { flex-direction: row; align-items: center; gap: 10px; }
 .anim-controls .field span { min-width: 84px; }
 .anim-controls input[type="range"] { flex: 1; accent-color: var(--accent); }
+.anim-toolbar { flex-direction: row; flex-wrap: wrap; align-items: center; }
 .anim-hint { font-size: 12px; line-height: 1.5; padding: 0 2px; }
 
 /* editable script slots */

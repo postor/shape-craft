@@ -1,4 +1,10 @@
 import { navBar } from './_shared.ts';
+import { getOrBuildTrainRobbery } from '../lib/director.ts';
+
+async function playTrainRobbery() {
+  const r = await getOrBuildTrainRobbery();
+  location.hash = `#/animations/${r.animationId}`;
+}
 
 export function renderHome(root: HTMLElement) {
   const wrap = document.createElement('div');
@@ -7,15 +13,30 @@ export function renderHome(root: HTMLElement) {
 
   const hero = document.createElement('section');
   hero.className = 'hero';
-  hero.innerHTML = `
+    hero.innerHTML = `
     <h1>ShapeCraft</h1>
     <p class="tagline">AI 驱动的 3D 世界与多人游戏创作平台 · 第一阶段：元件库与编辑器</p>
     <div class="cta">
       <a class="btn primary" href="#/library">进入元件库</a>
       <a class="btn" href="#/scenes">场景编辑</a>
+      <button class="btn accent" data-demo>▶ 导演：火车大劫案</button>
     </div>
     <p class="hint">用基础形状 + 材质构造 树 / 花 / 草 / 房子，或用聊天自动生成。</p>
   `;
+  const demoBtn = hero.querySelector('[data-demo]') as HTMLButtonElement | null;
+  if (demoBtn) {
+    demoBtn.addEventListener('click', async () => {
+      demoBtn.disabled = true;
+      demoBtn.textContent = '⏳ 正在生成场景…';
+      try {
+        await playTrainRobbery();
+      } catch (err) {
+        demoBtn.disabled = false;
+        demoBtn.textContent = '▶ 导演：火车大劫案';
+        alert('生成失败：' + (err as Error).message);
+      }
+    });
+  }
   wrap.appendChild(hero);
 
   const features = document.createElement('section');

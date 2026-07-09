@@ -12,6 +12,7 @@ export function navBar(active: 'home' | 'library' | 'settings' | 'characters' | 
       <a href="#/scenes" class="${active === 'scene' ? 'active' : ''}">场景</a>
       <a href="#/roam" class="${active === 'roam' ? 'active' : ''}">漫游</a>
       <a href="#/animations" class="${active === 'animation' ? 'active' : ''}">动画</a>
+      <a class="demo-link" href="#/demo">▶ 劫案 Demo</a>
       <a href="#/settings" class="${active === 'settings' ? 'active' : ''}">设置</a>
     </div>
   `;
