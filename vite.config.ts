@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Relative base so the built assets resolve correctly when served from a
+  // sub-path (e.g. GitHub Pages project site /<repo>/...).
+  base: './',
   server: {
     port: 5173,
     proxy: {
