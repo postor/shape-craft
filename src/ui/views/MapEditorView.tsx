@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { PageShell } from '../components';
 import { useCanvasView } from './useCanvasView';
 import { MapViewport, type MapEditMode } from '../../lib/map-view';
-import { runMapAgent, type MapAgentResult } from '../../lib/map-agent';
+import type { MapAgentResult } from '../../lib/map-agent';
 import { getMap, createMap, updateMap, deleteMap } from '../../lib/map-api';
 import { listAssets } from '../../lib/api';
 import {
@@ -22,7 +22,6 @@ const BTN_SM_PRIMARY =
   'inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent bg-accent px-3.5 py-2 text-sm font-semibold text-[#06140a] transition-colors hover:border-accent';
 const BTN_SM_DANGER =
   'inline-flex cursor-pointer items-center gap-1.5 border border-danger bg-transparent px-2.5 py-1.5 text-[13px] text-danger transition-colors hover:border-danger';
-const BTN_SM_FULL = BTN_SM + ' w-full justify-center';
 
 type ChatMsg = { id: number; role: 'user' | 'bot'; text: string; thinking?: boolean; raw?: string };
 
@@ -31,6 +30,7 @@ export function MapEditorView({ id }: { id?: string }) {
   const [, force] = useReducer((x: number) => x + 1, 0);
   const [ready, setReady] = useState(false);
   const [assetsList, setAssetsList] = useState<AssetComponent[]>([]);
+  const assetsListRef = useRef<AssetComponent[]>([]);
   const [savedId, setSavedId] = useState<string | undefined>(id);
   const [name, setName] = useState('');
   const [mode, setMode] = useState<MapEditMode>('roam');
@@ -68,7 +68,7 @@ export function MapEditorView({ id }: { id?: string }) {
         onPlace: (pt) => {
           const assetId = assetSelectRef.current;
           if (!assetId) return;
-          const asset = assetsList.find((a) => a.id === assetId);
+          const asset = assetsListRef.current.find((a) => a.id === assetId);
           const inst = createMapInstance(
             assetId,
             { x: pt.x, y: pt.y, z: pt.z },
@@ -95,6 +95,7 @@ export function MapEditorView({ id }: { id?: string }) {
     void (async () => {
       const list = await listAssets();
       setAssetsList(list);
+      assetsListRef.current = list;
       instance.current?.setAssets(new Map(list.map((a) => [a.id, a])));
       bump();
     })();

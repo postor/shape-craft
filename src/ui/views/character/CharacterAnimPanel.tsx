@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { CharacterAnimator } from '../../../lib/character-anim';
-import type { AnimClip, AnimTrack, AnimKeyframe } from '../../../schema';
+import type { AnimClip } from '../../../schema';
 
 const BTN_SM =
   'inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-2 py-1 text-[12px] text-text transition-colors hover:border-accent';
-const BTN_SM_ACTIVE = BTN_SM + ' bg-accent border-accent text-[#06140a] font-semibold';
 const BTN_TINY =
   'inline-flex cursor-pointer items-center gap-1 border border-border bg-panel-2 px-2 py-0.5 text-[11px] text-text transition-colors hover:border-accent';
 const BTN_TINY_PRIMARY =
@@ -28,7 +27,6 @@ export function CharacterAnimPanel({
   onActiveClip,
   onToggleCollapse,
   onSelectKf,
-  force,
 }: {
   clips: AnimClip[];
   bones: string[];
@@ -41,7 +39,6 @@ export function CharacterAnimPanel({
   onActiveClip: (name: string) => void;
   onToggleCollapse: (i: number) => void;
   onSelectKf: (kf: { clip: number; track: number; kf: number } | null) => void;
-  force: () => void;
 }) {
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);

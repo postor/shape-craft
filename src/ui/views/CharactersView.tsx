@@ -432,7 +432,8 @@ export function CharactersView({ type, id }: { type?: string; id?: string }) {
                 selectedKf={selectedKf}
                 animator={animatorRef}
                 getRootY={(y) => {
-                  instance.current?.getRootGroup().rotation.y = y;
+                  const vp = instance.current;
+                  if (vp) vp.getRootGroup().rotation.y = y;
                 }}
                 onClipsChange={(next) => {
                   assetRef.current.animClips = next;
@@ -452,7 +453,6 @@ export function CharactersView({ type, id }: { type?: string; id?: string }) {
                   })
                 }
                 onSelectKf={setSelectedKf}
-                force={bump}
               />
 
               <h4 className="pb-2 pt-4 text-[13px] uppercase tracking-[0.5px] text-muted">属性 Inspector</h4>

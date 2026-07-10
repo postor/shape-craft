@@ -6,17 +6,6 @@ export default {
   corePlugins: { preflight: false },
   theme: {
     extend: {
-      // Animations + keyframes required by vendored MagicUI components.
-      // Source: https://magicui.design (MIT). Kept dependency-free so the
-      // components render with only Tailwind + framer-motion.
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: ['./index.html', './src/**/*.{ts,tsx,js,html}'],
-  // Preflight disabled so Tailwind's reset does not override the app's
-  // existing hand-written component styles (buttons, inputs, layout, etc.).
-  corePlugins: { preflight: false },
-  theme: {
-    extend: {
       colors: {
         bg: '#0f1115',
         panel: '#171a21',
