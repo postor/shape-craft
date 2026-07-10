@@ -23,11 +23,11 @@ export function DemoView() {
 
   return (
     <PageShell active="demo">
-      <div className="hero flex flex-col items-center justify-center gap-4 py-24">
+      <div className="flex flex-col items-center justify-center gap-4 py-24">
         <span className="text-3xl">🎬</span>
-        <AnimatedShinyText className="text-lg text-neutral-300">{status}</AnimatedShinyText>
+        <AnimatedShinyText className="text-lg text-muted">{status}</AnimatedShinyText>
         {status.startsWith('生成失败') ? (
-          <button className="btn" onClick={() => (location.hash = '#/')}>
+          <button className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-3.5 py-2 text-sm text-text transition-colors hover:border-accent" onClick={() => (location.hash = '#/')}>
             ← 返回首页
           </button>
         ) : (

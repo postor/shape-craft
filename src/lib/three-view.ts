@@ -31,6 +31,8 @@ export class Viewport {
   private frameCallbacks: Array<(dt: number) => void> = [];
   private clock = new THREE.Clock();
   private scriptStop: (() => void) | null = null;
+  private lockRatio = true;
+  private scaleStart: THREE.Vector3 | null = null;
 
   constructor(
     container: HTMLElement,
@@ -58,9 +60,18 @@ export class Viewport {
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.transform.setSize(0.8);
     this.transform.addEventListener('dragging-changed', (e) => {
-      this.controls.enabled = !(e as unknown as { value: boolean }).value;
+      const dragging = (e as unknown as { value: boolean }).value;
+      this.controls.enabled = !dragging;
+      if (dragging && this.transform.getMode() === 'scale' && this.selectedHolder) {
+        this.scaleStart = this.selectedHolder.scale.clone();
+      } else if (!dragging) {
+        this.scaleStart = null;
+      }
     });
-    this.transform.addEventListener('objectChange', () => this.emitTransform());
+    this.transform.addEventListener('objectChange', () => {
+      this.applyScaleLock();
+      this.emitTransform();
+    });
     this.scene.add(this.transform.getHelper());
 
     const hemi = new THREE.HemisphereLight('#ffffff', '#444455', 1.1);
@@ -159,6 +170,37 @@ export class Viewport {
 
   getTransformMode(): TransformMode {
     return this.transform.getMode();
+  }
+
+  /**
+   * When enabled (default), dragging the scale gizmo scales all three axes
+   * uniformly so the selected part keeps its proportions — mirroring the
+   * "锁定比例" behaviour of the numeric scale editor.
+   */
+  setLockRatio(lock: boolean) {
+    this.lockRatio = lock;
+  }
+
+  private applyScaleLock() {
+    if (!this.lockRatio) return;
+    if (this.transform.getMode() !== 'scale') return;
+    const h = this.selectedHolder;
+    const start = this.scaleStart;
+    if (!h || !start) return;
+    // Pick the axis the user is actually dragging (largest relative change) and
+    // apply that factor uniformly to all three axes.
+    let bestFactor = 1;
+    let bestDelta = 0;
+    (['x', 'y', 'z'] as const).forEach((a) => {
+      if (start[a] === 0) return;
+      const factor = h.scale[a] / start[a];
+      const delta = Math.abs(factor - 1);
+      if (delta > bestDelta) {
+        bestDelta = delta;
+        bestFactor = factor;
+      }
+    });
+    h.scale.set(start.x * bestFactor, start.y * bestFactor, start.z * bestFactor);
   }
 
   private findHolder(id: string): THREE.Object3D | null {

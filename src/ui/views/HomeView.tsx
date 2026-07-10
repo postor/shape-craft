@@ -4,7 +4,7 @@ import {
   AnimatedGradientText,
   gradientColors,
   AnimatedShinyText,
-  ShimmerButton,
+  PlainButton,
   BlurFade,
   MagicCard,
 } from '../magicui';
@@ -21,29 +21,31 @@ const FEATURES: { title: string; desc: string }[] = [
 export function HomeView() {
   return (
     <PageShell active="home">
-      <section className="hero" style={gradientColors as CSSProperties}>
-        <AnimatedGradientText className="hero-title text-5xl font-bold leading-tight">
+      <section className="px-5 pb-10 pt-20 text-center" style={gradientColors as CSSProperties}>
+        <AnimatedGradientText className="text-[56px] font-bold leading-tight tracking-tight">
           ShapeCraft
         </AnimatedGradientText>
-        <AnimatedShinyText className="tagline mt-3 text-base text-neutral-300">
+        <AnimatedShinyText className="mt-3 text-[18px] text-muted">
           AI 驱动的 3D 世界与多人游戏创作平台 · 第一阶段：元件库与编辑器
         </AnimatedShinyText>
-        <div className="cta mt-6 flex flex-wrap gap-3">
-          <ShimmerButton onClick={() => (location.hash = '#/library')}>进入元件库</ShimmerButton>
-          <ShimmerButton onClick={() => (location.hash = '#/scenes')}>场景编辑</ShimmerButton>
-          <ShimmerButton onClick={() => (location.hash = '#/demo')}>▶ 导演：火车大劫案</ShimmerButton>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <PlainButton onClick={() => (location.hash = '#/library')}>进入元件库</PlainButton>
+          <PlainButton onClick={() => (location.hash = '#/scenes')}>场景编辑</PlainButton>
+          <PlainButton onClick={() => (location.hash = '#/demo')}>▶ 导演：火车大劫案</PlainButton>
         </div>
-        <p className="hint mt-4 text-sm text-neutral-400">
+        <p className="mt-4 text-sm text-muted">
           用基础形状 + 材质构造 树 / 花 / 草 / 房子，或用聊天自动生成。
         </p>
       </section>
 
-      <section className="features">
+      <section className="mx-auto grid w-full max-w-[1100px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 px-10 pb-15 pt-5">
         {FEATURES.map((f, i) => (
           <BlurFade key={f.title} delay={i * 0.05}>
-            <MagicCard className="feature p-5">
-              <h3 className="mb-2 text-lg font-semibold">{f.title}</h3>
-              <p className="text-sm text-neutral-300">{f.desc}</p>
+            <MagicCard className="flex flex-col rounded-[10px] border border-border bg-panel p-5">
+              <div className="flex flex-col items-start gap-2">
+                <h3 className="text-lg font-semibold leading-snug">{f.title}</h3>
+                <p className="whitespace-normal text-sm text-muted">{f.desc}</p>
+              </div>
             </MagicCard>
           </BlurFade>
         ))}

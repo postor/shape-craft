@@ -46,18 +46,18 @@ export function NavBar({ active }: { active?: string }) {
   // `active` is a PageShell hint; active state is derived from the live hash.
   void active;
   return (
-    <nav className="topnav">
-      <a className="brand" href="#/">
+    <nav className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-panel px-5 py-3">
+      <a className="text-[18px] font-bold" href="#/">
         🌱 ShapeCraft
       </a>
-      <div className="nav-links">
+      <div className="flex items-center">
         {NAV_LINKS.map((l) => {
           const isActive = isActiveKey(l.key, hash);
           return (
             <a
               key={l.key}
               href={l.href}
-              className={cn(isActive ? 'active' : '')}
+              className={cn('ml-4 text-muted hover:text-text', isActive && 'text-text')}
               aria-current={isActive ? 'page' : undefined}
             >
               {l.label}
@@ -79,27 +79,27 @@ export function PageShell({
   className?: string;
 }) {
   return (
-    <div className={cn('page', className)}>
+    <div className={cn('flex min-h-screen flex-col', className)}>
       <NavBar active={active} />
-      <main className="route-main">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   );
 }
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="empty-state">
-      <p className="empty-title">{title}</p>
-      {hint && <p className="empty-hint">{hint}</p>}
+    <div className="p-12 text-center text-muted">
+      <p className="text-[18px] font-semibold text-text">{title}</p>
+      {hint && <p className="mt-1.5 text-sm">{hint}</p>}
     </div>
   );
 }
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="spinner-wrap">
-      <span className="spinner" />
-      {label && <span className="muted">{label}</span>}
+    <div className="flex items-center justify-center gap-2.5 p-12 text-muted">
+      <span className="h-[22px] w-[22px] animate-spin rounded-full border-[3px] border-white/15 border-t-accent" />
+      {label && <span className="text-sm">{label}</span>}
     </div>
   );
 }

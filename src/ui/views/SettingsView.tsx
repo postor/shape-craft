@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { PageShell } from '../components';
 import { useSettings } from '../../lib/hooks';
 import { exportDatabase, importDatabase, type ImportResult } from '../../lib/localdb';
-import { MagicCard, ShimmerButton, BlurFade } from '../magicui';
+import { MagicCard, PlainButton, BlurFade } from '../magicui';
 
 export function SettingsView() {
   const { settings, localMode, update, setMode } = useSettings();
@@ -36,7 +36,7 @@ export function SettingsView() {
 
   return (
     <PageShell active="settings">
-      <div className="settings-wrap p-6 grid gap-6 md:grid-cols-2">
+      <div className="mx-auto grid w-full max-w-[760px] grid-cols-1 gap-6 p-6 md:grid-cols-2">
         <BlurFade>
           <MagicCard className="p-5" gradientFrom="#a78bfa" gradientTo="#22d3ee">
             <h3 className="mb-4 text-lg font-semibold">OpenAI 兼容设置</h3>
@@ -48,29 +48,29 @@ export function SettingsView() {
               />
               <span>启用 AI（关闭则使用规则生成）</span>
             </label>
-            <div className="field">
-              <span className="muted">API Key</span>
+            <div className="mb-3 flex flex-col gap-1.5 text-[13px] text-muted">
+              <span className="text-[12px] text-muted">API Key</span>
               <input
-                className="text-input"
+                className="w-full rounded-lg border border-border bg-panel-2 px-2.5 py-2 text-sm text-text"
                 type="password"
                 value={form.apiKey}
                 onChange={(e) => set('apiKey', e.target.value)}
                 placeholder="sk-…"
               />
             </div>
-            <div className="field">
-              <span className="muted">Model</span>
+            <div className="mb-3 flex flex-col gap-1.5 text-[13px] text-muted">
+              <span className="text-[12px] text-muted">Model</span>
               <input
-                className="text-input"
+                className="w-full rounded-lg border border-border bg-panel-2 px-2.5 py-2 text-sm text-text"
                 value={form.model}
                 onChange={(e) => set('model', e.target.value)}
                 placeholder="gpt-4o-mini"
               />
             </div>
-            <div className="field">
-              <span className="muted">Base URL</span>
+            <div className="mb-3 flex flex-col gap-1.5 text-[13px] text-muted">
+              <span className="text-[12px] text-muted">Base URL</span>
               <input
-                className="text-input"
+                className="w-full rounded-lg border border-border bg-panel-2 px-2.5 py-2 text-sm text-text"
                 value={form.baseUrl}
                 onChange={(e) => set('baseUrl', e.target.value)}
                 placeholder="https://api.openai.com/v1"
@@ -85,7 +85,7 @@ export function SettingsView() {
               <span>支持视觉（多模态截图）</span>
             </label>
             <div className="mt-4">
-              <ShimmerButton onClick={() => update(form)}>保存设置</ShimmerButton>
+              <PlainButton onClick={() => update(form)}>保存设置</PlainButton>
             </div>
           </MagicCard>
         </BlurFade>
@@ -102,8 +102,8 @@ export function SettingsView() {
               <span>本地模式（localStorage，不连接后端）</span>
             </label>
             <div className="flex flex-col gap-3">
-              <ShimmerButton onClick={() => void handleExport()}>导出数据库 (.zip)</ShimmerButton>
-              <button className="btn" onClick={() => fileRef.current?.click()}>导入数据库</button>
+              <PlainButton onClick={() => void handleExport()}>导出数据库 (.zip)</PlainButton>
+              <button className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-3.5 py-2 text-sm text-text transition-colors hover:border-accent" onClick={() => fileRef.current?.click()}>导入数据库</button>
               <input
                 ref={fileRef}
                 type="file"

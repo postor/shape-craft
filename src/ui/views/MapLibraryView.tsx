@@ -1,7 +1,7 @@
 import { PageShell, Spinner, EmptyState } from '../components';
 import { useMaps, mapMutations } from '../../lib/hooks';
 import { MAP_TEMPLATES, createMapFromTemplate, type MapInput } from '../../schema/map';
-import { MagicCard, BlurFade, ShimmerButton, BorderBeam } from '../magicui';
+import { MagicCard, BlurFade, PlainButton, BorderBeam } from '../magicui';
 import type { MapComponent } from '../../schema';
 
 function MapCard({ map, onEdit, onDuplicate, onRename, onDelete }: {
@@ -12,20 +12,20 @@ function MapCard({ map, onEdit, onDuplicate, onRename, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <MagicCard className="map-card relative flex-col p-0" gradientFrom="#22d3ee" gradientTo="#a78bfa">
+    <MagicCard className="relative flex flex-col overflow-hidden rounded-[10px] border border-border bg-panel p-0" gradientFrom="#22d3ee" gradientTo="#a78bfa">
       <BorderBeam colorFrom="#22d3ee" colorTo="#a78bfa" />
-      <div className="map-thumb">
-        {map.thumbnail ? <img src={map.thumbnail} alt={map.name} /> : <div className="map-thumb-empty">{map.instances.length} 实例</div>}
+      <div className="flex h-[140px] items-center justify-center bg-[#0b0d12]">
+        {map.thumbnail ? <img className="h-full w-full object-cover" src={map.thumbnail} alt={map.name} /> : <div className="text-[28px] tracking-[2px] text-muted">{map.instances.length} 实例</div>}
       </div>
-      <div className="map-meta p-3">
+      <div className="flex flex-col gap-1 p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-medium">{map.name}</span>
         </div>
-        <div className="map-actions mt-3 flex flex-wrap gap-2">
-          <button className="btn small" onClick={onEdit}>编辑</button>
-          <button className="btn small" onClick={onDuplicate}>复制</button>
-          <button className="btn small" onClick={onRename}>重命名</button>
-          <button className="btn small danger" onClick={onDelete}>删除</button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-2.5 py-1.5 text-[13px] text-text transition-colors hover:border-accent" onClick={onEdit}>编辑</button>
+          <button className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-2.5 py-1.5 text-[13px] text-text transition-colors hover:border-accent" onClick={onDuplicate}>复制</button>
+          <button className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-2.5 py-1.5 text-[13px] text-text transition-colors hover:border-accent" onClick={onRename}>重命名</button>
+          <button className="inline-flex cursor-pointer items-center gap-1.5 border border-danger bg-transparent px-2.5 py-1.5 text-[13px] text-danger transition-colors hover:border-danger" onClick={onDelete}>删除</button>
         </div>
       </div>
     </MagicCard>
@@ -62,14 +62,14 @@ export function MapLibraryView() {
 
   return (
     <PageShell active="map">
-      <div className="library-header flex items-center justify-between p-6">
+      <div className="flex items-center justify-between p-6">
         <h2 className="text-2xl font-semibold">地图库</h2>
-        <ShimmerButton onClick={() => (location.hash = '#/map')}>＋ 新建地图</ShimmerButton>
+        <PlainButton onClick={() => (location.hash = '#/map')}>＋ 新建地图</PlainButton>
       </div>
 
-      <div className="map-quickbar flex flex-wrap gap-2 px-6">
+      <div className="flex flex-wrap gap-2 px-6">
         {MAP_TEMPLATES.map((t) => (
-          <button key={t.key} className="btn small" onClick={() => void createFromTemplate(t.key)}>
+          <button key={t.key} className="inline-flex cursor-pointer items-center gap-1.5 border border-border bg-panel-2 px-2.5 py-1.5 text-[13px] text-text transition-colors hover:border-accent" onClick={() => void createFromTemplate(t.key)}>
             {t.label}
           </button>
         ))}
@@ -80,7 +80,7 @@ export function MapLibraryView() {
       ) : maps.length === 0 ? (
         <EmptyState title="还没有地图" hint="选择上方模板，或点击「新建地图」。" />
       ) : (
-        <div className="asset-grid p-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 p-6">
           {maps.map((map, i) => (
             <BlurFade key={map.id} delay={Math.min(i * 0.03, 0.3)}>
               <MapCard

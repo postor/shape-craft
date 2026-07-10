@@ -6,6 +6,7 @@ import { SettingsView } from './views/SettingsView';
 import { MapLibraryView } from './views/MapLibraryView';
 import { RecordListView } from './views/RecordListView';
 import { DemoView } from './views/DemoView';
+import { SceneLibraryView } from './views/SceneLibraryView';
 import { Spinner } from './components';
 
 // Canvas (Three.js) views are code-split so the heavy 3D runtime stays out of
@@ -49,7 +50,7 @@ export function App(): ReactElement {
       view = <CharactersView type={parts[1]} id={parts[2]} />;
       break;
     case 'scenes':
-      view = <SceneView id={parts[1]} />;
+      view = parts[1] ? <SceneView id={parts[1]} /> : <SceneLibraryView />;
       break;
     case 'roam':
       view = <RoamView id={parts[1]} />;
